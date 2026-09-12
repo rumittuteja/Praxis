@@ -1,0 +1,4073 @@
+{
+  "version": 1,
+  "generatedNote": "Syllabus for AI engineering with Claude and Amazon Bedrock. Concepts are small, prerequisite-linked units; tiers run 1 (foundational) to 5 (expert). Source URLs are fetched by the docs sync service to ground generated lessons in current material.",
+  "tracks": [
+    {
+      "id": "prompting",
+      "title": "Prompting & Context Engineering",
+      "order": 1,
+      "summary": "Getting what you want out of a model on purpose rather than by luck — and deciding what belongs in the context window at all."
+    },
+    {
+      "id": "api",
+      "title": "The Claude API",
+      "order": 2,
+      "summary": "The Messages API surface: content blocks, streaming, thinking, caching, structured outputs, and what each one costs."
+    },
+    {
+      "id": "tools",
+      "title": "Tool Use & Agents",
+      "order": 3,
+      "summary": "Giving the model hands. Tool definitions, the agentic loop, server-side tools, and deciding when an agent is the wrong answer."
+    },
+    {
+      "id": "claude-code",
+      "title": "Agentic Development",
+      "order": 4,
+      "summary": "Claude Code as a working environment: memory files, permissions, skills, hooks, subagents, and the SDK underneath it."
+    },
+    {
+      "id": "evals",
+      "title": "Evaluation & Reliability",
+      "order": 5,
+      "summary": "How you know whether a change helped. Datasets, graders, held-out splits, and treating prompts as versioned artifacts."
+    },
+    {
+      "id": "aws",
+      "title": "AWS & Amazon Bedrock",
+      "order": 6,
+      "summary": "From an empty AWS account to production Bedrock architecture: IAM, SigV4, InvokeModel, guardrails, knowledge bases, and cost."
+    },
+    {
+      "id": "production",
+      "title": "Production AI Engineering",
+      "order": 7,
+      "summary": "Everything between a working prototype and a system you'd let real users near: keys, latency, retries, injection defense, cost."
+    }
+  ],
+  "concepts": [
+    {
+      "id": "prompt-anatomy",
+      "trackID": "prompting",
+      "title": "Anatomy of a request",
+      "tier": 1,
+      "summary": "A request is a system prompt plus an alternating sequence of user and assistant turns. Each slot has a different job.",
+      "prerequisites": [],
+      "objectives": [
+        "Explain what belongs in the system prompt versus a user turn",
+        "Describe why the messages array must alternate roles",
+        "Identify which part of a request persists across turns and which does not"
+      ],
+      "keyIdeas": [
+        "The system prompt is the operator channel: durable instructions, role, constraints, output contract.",
+        "User and assistant turns are the transcript. You resend the whole transcript every request — the API is stateless.",
+        "Because you resend everything, conversation length is a cost and latency variable, not just a UX one.",
+        "Assistant prefill (putting words in the model's mouth as the last turn) is removed on current models and returns a 400."
+      ],
+      "misconceptions": [
+        "That the API remembers previous turns for you. It does not — you are rebuilding the entire conversation on every call.",
+        "That the system prompt is just 'a place for the personality'. It is where your output contract and constraints live."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "prompt-specificity",
+      "trackID": "prompting",
+      "title": "Being explicit",
+      "tier": 1,
+      "summary": "Most bad outputs are underspecified requests. The model optimises for what you asked, not what you meant.",
+      "prerequisites": [
+        "prompt-anatomy"
+      ],
+      "objectives": [
+        "Rewrite a vague prompt into one with an explicit task, audience, format, and success criterion",
+        "Predict which part of an underspecified prompt the model will guess at"
+      ],
+      "keyIdeas": [
+        "State the task, the audience, the format, the length, and what 'good' means. Omitting any one invites a guess.",
+        "Negative instructions ('don't be verbose') work far less reliably than positive ones ('answer in at most three sentences').",
+        "If you cannot describe what a correct answer looks like, the model cannot either — that is a specification problem, not a prompting one.",
+        "Context the model cannot see must be supplied. It has no access to your repo, your users, or last week's decision."
+      ],
+      "misconceptions": [
+        "That longer prompts are better prompts. Precision beats volume; padding dilutes the instructions that matter.",
+        "That the model is 'being lazy' when it under-delivers. Almost always the success criterion was never stated."
+      ],
+      "practiceKinds": [
+        "prompt"
+      ],
+      "sources": [
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic courses",
+          "url": "https://github.com/anthropics/courses",
+          "kind": "courses"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "prompt-structure-tags",
+      "trackID": "prompting",
+      "title": "Structuring with delimiters",
+      "tier": 1,
+      "summary": "Separating instructions from data with explicit delimiters removes an entire class of ambiguity.",
+      "prerequisites": [
+        "prompt-anatomy"
+      ],
+      "objectives": [
+        "Structure a prompt so instructions, reference material, and the user's question are unambiguously separated",
+        "Explain why delimiters matter more as input length grows"
+      ],
+      "keyIdeas": [
+        "XML-ish tags (<document>, <instructions>, <example>) are a convention Claude follows well; the specific tag names matter less than consistency.",
+        "Delimiting lets you refer back: 'using only the text in <document>, answer <question>'.",
+        "Long unstructured inputs make it genuinely ambiguous which sentence was an instruction and which was data — that ambiguity is also the root of prompt injection.",
+        "Structure makes prompts diffable and testable, which matters once you have an eval."
+      ],
+      "misconceptions": [
+        "That tags are magic syntax the model parses specially. They are a strong convention, not a parser directive.",
+        "That structure is only for long prompts. The habit pays off precisely when a prompt later grows."
+      ],
+      "practiceKinds": [
+        "prompt"
+      ],
+      "sources": [
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic courses",
+          "url": "https://github.com/anthropics/courses",
+          "kind": "courses"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "prompt-role-and-voice",
+      "trackID": "prompting",
+      "title": "The system prompt as operator channel",
+      "tier": 2,
+      "summary": "Durable instructions belong in the system prompt — including, on current models, mid-conversation.",
+      "prerequisites": [
+        "prompt-anatomy"
+      ],
+      "objectives": [
+        "Decide correctly whether a given instruction belongs in the system prompt or a user turn",
+        "Explain why mid-conversation system messages exist"
+      ],
+      "keyIdeas": [
+        "The system prompt sets standing behaviour: role, tone, constraints, refusal policy, output contract.",
+        "On Opus 5 and several other current models you can append a {role: 'system'} entry to the messages array mid-conversation — an operator instruction that does not invalidate the cached prefix.",
+        "This is also the injection-safe channel: content that arrives from a user or a document is data, and must never be promoted into the operator channel.",
+        "Editing the top-level system prompt mid-conversation invalidates your entire prompt cache."
+      ],
+      "misconceptions": [
+        "That you should rewrite the top-level system prompt to steer a conversation. That is the expensive way; a mid-conversation system message is the cheap one."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "prompt-examples",
+      "trackID": "prompting",
+      "title": "Examples and multishot",
+      "tier": 2,
+      "summary": "A few well-chosen examples specify a format faster and more reliably than a paragraph describing it.",
+      "prerequisites": [
+        "prompt-specificity"
+      ],
+      "objectives": [
+        "Choose examples that cover the edges of a task rather than its centre",
+        "Explain when examples hurt rather than help"
+      ],
+      "keyIdeas": [
+        "Examples teach format and edge-case handling far more efficiently than prose.",
+        "Cover the boundaries: the ambiguous case, the empty case, the 'should refuse' case. Three well-chosen examples beat ten similar ones.",
+        "Examples anchor hard. A subtle error in one propagates into every output.",
+        "For high-volume prompts, examples are a large stable prefix — exactly what prompt caching is for."
+      ],
+      "misconceptions": [
+        "That more examples monotonically improve quality. Past a handful you are mostly paying tokens and narrowing the model's range.",
+        "That examples can substitute for a clear instruction. They specify shape, not intent."
+      ],
+      "practiceKinds": [
+        "prompt"
+      ],
+      "sources": [
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic courses",
+          "url": "https://github.com/anthropics/courses",
+          "kind": "courses"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "prompt-output-shaping",
+      "trackID": "prompting",
+      "title": "Controlling output format",
+      "tier": 2,
+      "summary": "Getting a machine-readable answer is a solved problem — but not the way older prompting guides say.",
+      "prerequisites": [
+        "prompt-structure-tags"
+      ],
+      "objectives": [
+        "List the current ways to constrain output format and pick the right one",
+        "Explain why the prefill technique no longer applies"
+      ],
+      "keyIdeas": [
+        "Structured outputs (output_config.format) constrain the response to a JSON schema — the strongest guarantee.",
+        "A strict tool (strict: true, additionalProperties: false) is the portable alternative and works across providers including Bedrock.",
+        "Instructions plus an example remain fine for loose formats like Markdown sections.",
+        "Assistant prefill — the old trick of starting the assistant turn with '{' — returns a 400 on current models. Any guide recommending it is stale."
+      ],
+      "misconceptions": [
+        "That you must post-process the model's prose to extract JSON. You can constrain the output instead.",
+        "That asking nicely for 'valid JSON only' is equivalent to a schema constraint. It is not; it fails on the tail."
+      ],
+      "practiceKinds": [
+        "prompt",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Structured outputs",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/structured-outputs",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "context-window-budget",
+      "trackID": "prompting",
+      "title": "What fills a context window",
+      "tier": 2,
+      "summary": "The context window is a budget you spend, and where you spend it changes the answer.",
+      "prerequisites": [
+        "prompt-anatomy"
+      ],
+      "objectives": [
+        "Account for every category of token in a request",
+        "Explain position effects and why burying an instruction mid-document is risky"
+      ],
+      "keyIdeas": [
+        "Current Claude models have a 1M-token context window; Haiku 4.5 has 200K. Big, but not free — you pay per token, every turn.",
+        "The whole transcript is resent each turn, so a long conversation costs more per turn than a short one at identical output length.",
+        "Placement matters: instructions at the very start or very end of a long input are followed more reliably than ones buried in the middle.",
+        "Filling the window is not using it well. Retrieval that puts 3 relevant documents in beats stuffing 300."
+      ],
+      "misconceptions": [
+        "That a bigger context window removes the need for retrieval. It changes the economics, not the principle.",
+        "That token count equals word count. It does not, and tokenizers differ between model generations — measure, do not estimate."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Context windows",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/context-windows",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Token counting",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/token-counting",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "prompt-thinking",
+      "trackID": "prompting",
+      "title": "When reasoning helps",
+      "tier": 3,
+      "summary": "Extended thinking buys accuracy on hard problems and wastes money on easy ones.",
+      "prerequisites": [
+        "prompt-specificity"
+      ],
+      "objectives": [
+        "Decide whether a workload benefits from thinking and at what effort",
+        "State the current thinking configuration and why the old one is gone"
+      ],
+      "keyIdeas": [
+        "Current models use adaptive thinking: thinking: {type: 'adaptive'} — the model decides how much to think.",
+        "On Opus 5 thinking is on by default; omitting the parameter runs adaptive.",
+        "The fixed budget_tokens knob is removed on Opus 5 and Sonnet 5 and returns a 400. Depth is controlled by output_config.effort instead.",
+        "Thinking pays off on multi-step reasoning, coding, and long-horizon agentic work; it is largely wasted on classification and simple extraction."
+      ],
+      "misconceptions": [
+        "That 'think step by step' in the prompt is the same as extended thinking. It is a different, much weaker mechanism.",
+        "That budget_tokens is still the way to cap reasoning. On current models it is a 400 error."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Extended thinking",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/extended-thinking",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "prompt-decomposition",
+      "trackID": "prompting",
+      "title": "One job per call",
+      "tier": 3,
+      "summary": "Chaining several focused calls usually beats one prompt that tries to do everything.",
+      "prerequisites": [
+        "prompt-examples"
+      ],
+      "objectives": [
+        "Split a compound task into a chain and justify each boundary",
+        "Recognise when decomposition costs more than it buys"
+      ],
+      "keyIdeas": [
+        "A prompt doing extraction, judgement, and formatting at once fails in ways you cannot attribute to a cause.",
+        "Separate calls are separately testable, separately cacheable, and separately swappable to a cheaper model.",
+        "Each hop adds latency and a place for errors to compound — decompose along genuine seams, not arbitrarily.",
+        "Deterministic glue between steps is a feature: validate, retry, or branch in code rather than asking the model to be reliable."
+      ],
+      "misconceptions": [
+        "That decomposition always improves quality. Splitting a genuinely holistic judgement can make it worse.",
+        "That a chain is an agent. A chain has control flow you wrote; an agent decides its own."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic cookbook",
+          "url": "https://github.com/anthropics/anthropic-cookbook",
+          "kind": "cookbook"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "context-engineering",
+      "trackID": "prompting",
+      "title": "Context engineering",
+      "tier": 3,
+      "summary": "Deciding what the model sees is a higher-leverage skill than wording the request.",
+      "prerequisites": [
+        "context-window-budget",
+        "prompt-specificity"
+      ],
+      "objectives": [
+        "Design what goes into a context window for a given task and justify the exclusions",
+        "Order a prompt so the stable parts come first"
+      ],
+      "keyIdeas": [
+        "Curate, do not stuff. Relevance density beats volume; irrelevant context actively degrades answers.",
+        "Order for caching: stable content first (tools, then system, then messages), volatile content last.",
+        "Summarise or externalise history rather than carrying it forever — that is what compaction and memory exist for.",
+        "For agents, context is a managed resource with a lifecycle: what to load, what to clear, what to persist."
+      ],
+      "misconceptions": [
+        "That context engineering means 'write a longer system prompt'. It usually means putting less in, more deliberately.",
+        "That retrieval is only for documents. Tool results, prior turns, and scratchpads are context you are choosing to keep or drop."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Context windows",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/context-windows",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prompt-iteration",
+      "trackID": "prompting",
+      "title": "Improving a prompt systematically",
+      "tier": 3,
+      "summary": "Prompt work without measurement is superstition. The loop is: cases, baseline, one change, re-measure.",
+      "prerequisites": [
+        "prompt-specificity"
+      ],
+      "objectives": [
+        "Run a disciplined prompt-improvement loop on a real task",
+        "Explain why anecdotal prompt tweaking misleads"
+      ],
+      "keyIdeas": [
+        "Collect failing cases first. A prompt change with no failing case to fix is a guess.",
+        "Change one thing at a time and re-run the whole set — model outputs vary, so a single retry proves nothing.",
+        "Keep the cases in a file, not in your head. This is the seed of an eval set.",
+        "Record what you tried and what it did. Most prompt work is rediscovering what you already ruled out."
+      ],
+      "misconceptions": [
+        "That a fix which works on the case you were staring at is a fix. It is one sample.",
+        "That prompt quality is subjective and cannot be measured. Most of it can, with modest effort."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic courses",
+          "url": "https://github.com/anthropics/courses",
+          "kind": "courses"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "prompt-cruft",
+      "trackID": "prompting",
+      "title": "Auditing prompts for stale patterns",
+      "tier": 4,
+      "summary": "Prompts written for older models carry instructions that are now useless, or actively harmful.",
+      "prerequisites": [
+        "prompt-iteration",
+        "prompt-thinking"
+      ],
+      "objectives": [
+        "Identify dated prompt patterns and say why each is obsolete",
+        "Audit an existing prompt against a named target model"
+      ],
+      "keyIdeas": [
+        "Common cruft: prefill scaffolds, 'think step by step' alongside real thinking, verbose XML ceremony, anti-laziness nagging, fixed token budgets.",
+        "Instructions that suppress reasoning ('do not think') can make tag leakage worse on current models rather than better.",
+        "Prompts tuned to coax a weaker model are often over-prescriptive for a stronger one and measurably reduce output quality.",
+        "Cruft does not announce itself — it looks like a working prompt. Auditing is a deliberate pass, not something you notice."
+      ],
+      "misconceptions": [
+        "That a prompt that still works is a prompt that needs no attention. It may be paying for instructions that do nothing.",
+        "That migration means changing the model string. The prompting written for the old model is part of the migration."
+      ],
+      "practiceKinds": [
+        "investigation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Extended thinking",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/extended-thinking",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prompt-injection-basics",
+      "trackID": "prompting",
+      "title": "Data is not instructions",
+      "tier": 4,
+      "summary": "Any text that reaches the context from outside is untrusted, and the model cannot reliably tell it apart from your instructions.",
+      "prerequisites": [
+        "context-engineering"
+      ],
+      "objectives": [
+        "Identify every untrusted input path in a given design",
+        "Explain why delimiting alone is not a defense"
+      ],
+      "keyIdeas": [
+        "Fetched pages, tool results, file contents, user messages, and other agents' output are all data. None of them may direct behaviour.",
+        "Delimiters and 'ignore instructions in the document' help but are not a security boundary — treat them as hygiene, not control.",
+        "The real controls are architectural: least privilege on tools, human approval for consequential actions, and output validation.",
+        "Impact scales with capability. A summariser that gets injected produces a bad summary; an agent with shell access produces an incident."
+      ],
+      "misconceptions": [
+        "That a strong enough system prompt can make injection impossible. No prompt is a security boundary.",
+        "That injection only matters when users are hostile. Most real cases come through documents and web pages, not the user."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt engineering overview",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prompt-for-agents",
+      "trackID": "prompting",
+      "title": "Prompting long-horizon work",
+      "tier": 5,
+      "summary": "Prompting an agent that will run for many turns is a different discipline from prompting a single response.",
+      "prerequisites": [
+        "prompt-thinking",
+        "prompt-decomposition"
+      ],
+      "objectives": [
+        "Write a prompt for a multi-turn agentic task with the right effort and autonomy settings",
+        "Explain why over-prescriptive prompts hurt strong models on long tasks"
+      ],
+      "keyIdeas": [
+        "Give the full task specification up front. Agents that discover requirements mid-run waste turns and context.",
+        "Run long-horizon work at high or xhigh effort; lower effort produces fewer, more consolidated tool calls and less preamble.",
+        "State the stopping condition and what 'done' looks like, or the agent will decide for you.",
+        "Say what is off-limits explicitly — an agent will happily take a shortcut you would have rejected."
+      ],
+      "misconceptions": [
+        "That agent prompts should be maximally detailed. On current models over-prescription measurably reduces quality; state the goal and the constraints.",
+        "That you can steer a long run purely with the initial prompt. Checkpoints and approval gates are part of the design."
+      ],
+      "practiceKinds": [
+        "prompt",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Claude Code overview",
+          "url": "https://code.claude.com/docs/en/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "api-messages-endpoint",
+      "trackID": "api",
+      "title": "Everything is /v1/messages",
+      "tier": 1,
+      "summary": "One endpoint does chat, tool use, vision, structured output and agents. Features are parameters, not separate APIs.",
+      "prerequisites": [],
+      "objectives": [
+        "Describe the request/response shape of the Messages API",
+        "Explain why 'the tool use API' is a misnomer"
+      ],
+      "keyIdeas": [
+        "POST /v1/messages takes model, max_tokens, messages, and optional system/tools/thinking/output_config.",
+        "Tool use, structured outputs, vision, and citations are all parameters of this one endpoint.",
+        "Supporting endpoints — Batches, Files, Token Counting, Models — feed into it rather than replacing it.",
+        "The endpoint is stateless. Every request carries the full conversation."
+      ],
+      "misconceptions": [
+        "That there are separate endpoints for chat versus tools versus agents. There is one."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 5
+    },
+    {
+      "id": "api-auth",
+      "trackID": "api",
+      "title": "Authentication and key hygiene",
+      "tier": 1,
+      "summary": "An API key in the wrong place is the most common and most expensive mistake in this whole field.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Send an authenticated request and name every required header",
+        "Explain why a key in a mobile or browser client is a liability"
+      ],
+      "keyIdeas": [
+        "Required headers: x-api-key, anthropic-version: 2023-06-01, content-type: application/json.",
+        "Keys are bearer credentials — anyone holding one can spend your money at your rate limit.",
+        "A key shipped in a client binary is extractable, full stop. Obfuscation is not protection.",
+        "Server-side, resolve keys from the environment or a secret manager, never from source."
+      ],
+      "misconceptions": [
+        "That a key embedded in a compiled app is safe because it is compiled. It is trivially recoverable.",
+        "That an unset ANTHROPIC_API_KEY means no credentials exist — SDKs also resolve OAuth profiles and federation."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 5
+    },
+    {
+      "id": "api-model-ids",
+      "trackID": "api",
+      "title": "Model identifiers",
+      "tier": 1,
+      "summary": "Model IDs are exact strings. Guessing one, or appending a remembered date suffix, is a 404 waiting to happen.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Name the current model family and pick appropriately for a workload",
+        "Explain why date-suffixed IDs are a trap"
+      ],
+      "keyIdeas": [
+        "Current first-party IDs are bare: claude-opus-5, claude-sonnet-5, claude-haiku-4-5.",
+        "Do not append date suffixes to current IDs — the string in the docs is complete as written.",
+        "Opus for reasoning-heavy work, Sonnet for volume with judgement, Haiku for fast bulk work.",
+        "Bedrock prefixes the same models with anthropic., and Vertex uses an @ separator for dated snapshots. Same models, different naming."
+      ],
+      "misconceptions": [
+        "That model IDs follow a guessable pattern you can construct. Look them up.",
+        "That the newest model is always the right choice. Cost per completed task is the metric, not benchmark position."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Models overview",
+          "url": "https://docs.claude.com/en/docs/about-claude/models/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 5
+    },
+    {
+      "id": "api-content-blocks",
+      "trackID": "api",
+      "title": "Content is an array of blocks",
+      "tier": 2,
+      "summary": "Both requests and responses carry a list of typed blocks, not a string. Treating content as a string breaks the moment tools or thinking appear.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Parse a response containing thinking, text, and tool_use blocks",
+        "Explain why response.content[0].text is a bug"
+      ],
+      "keyIdeas": [
+        "Block types include text, thinking, tool_use, tool_result, image, and document.",
+        "With thinking enabled, a thinking block typically precedes the text or tool_use block — indexing position 0 gets you the wrong thing.",
+        "Scan and filter by type; never index by position.",
+        "When continuing a conversation, append the whole content array back, not just the extracted text."
+      ],
+      "misconceptions": [
+        "That the response is a string with extra metadata. The array is the response.",
+        "That dropping thinking blocks when replaying history is harmless. On some models it invalidates later blocks."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Extended thinking",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/extended-thinking",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "api-max-tokens",
+      "trackID": "api",
+      "title": "max_tokens is a hard cliff",
+      "tier": 2,
+      "summary": "max_tokens is an enforced ceiling the model is not aware of. Hit it and the response stops mid-sentence.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Choose a max_tokens appropriate to a workload",
+        "Detect and handle a truncated response"
+      ],
+      "keyIdeas": [
+        "The model is not told about max_tokens and does not pace itself against it — it is cut off.",
+        "Sensible defaults: ~16000 non-streaming, ~64000 streaming. Classification can go far lower.",
+        "Values above roughly 64K require streaming or the request will hit an HTTP timeout.",
+        "stop_reason == 'max_tokens' is how you detect truncation. Always check it."
+      ],
+      "misconceptions": [
+        "That max_tokens sets a target length. It sets a guillotine.",
+        "That a low max_tokens saves money reliably. A truncated answer you have to retry costs more than the one you capped."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "api-stop-reason",
+      "trackID": "api",
+      "title": "Reading stop_reason",
+      "tier": 2,
+      "summary": "Four lines of branching on stop_reason separates code that works from code that silently corrupts.",
+      "prerequisites": [
+        "api-content-blocks"
+      ],
+      "objectives": [
+        "Branch correctly on every stop_reason your code can receive",
+        "Explain when stop_details is populated"
+      ],
+      "keyIdeas": [
+        "Values you will see: end_turn, max_tokens, tool_use, pause_turn, refusal.",
+        "A refusal returns HTTP 200 with stop_reason 'refusal' — it is not an exception and will not be caught by error handling.",
+        "stop_details is populated only for refusals; it is null for everything else, so guard before reading it.",
+        "tool_use means the turn is not over: you owe the model tool results."
+      ],
+      "misconceptions": [
+        "That a 200 response means success. A refusal is a 200.",
+        "That you can read stop_details unconditionally. It is null in the common case."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "api-streaming",
+      "trackID": "api",
+      "title": "Streaming with SSE",
+      "tier": 2,
+      "summary": "Streaming is the difference between a product that feels alive and one that looks hung — and it is how you avoid timeouts.",
+      "prerequisites": [
+        "api-content-blocks"
+      ],
+      "objectives": [
+        "Consume an SSE stream and reassemble the final message",
+        "Explain why long requests must stream"
+      ],
+      "keyIdeas": [
+        "Event sequence: message_start, then per-block content_block_start / content_block_delta / content_block_stop, then message_delta and message_stop.",
+        "Delta types differ: text_delta, thinking_delta, input_json_delta, signature_delta.",
+        "Tool inputs arrive as JSON fragments across many input_json_delta events and are only parseable once the block closes.",
+        "Usage arrives in pieces — input tokens on message_start, output tokens on message_delta."
+      ],
+      "misconceptions": [
+        "That you can parse partial tool JSON as it arrives. You cannot; it is not valid until the block stops.",
+        "That streaming is only a UX nicety. It is also how you avoid HTTP timeouts on large max_tokens."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Streaming messages",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/streaming",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "api-token-counting",
+      "trackID": "api",
+      "title": "Counting tokens properly",
+      "tier": 2,
+      "summary": "There is an endpoint for this. Third-party tokenizers give wrong answers for Claude.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Measure the token cost of a prompt before sending it",
+        "Explain why tiktoken is the wrong tool"
+      ],
+      "keyIdeas": [
+        "POST /v1/messages/count_tokens takes the same request shape and returns the input token count, free of charge.",
+        "tiktoken is OpenAI's tokenizer. Its counts do not transfer to Claude.",
+        "Tokenizers change between model generations — Opus 4.7 introduced one that differs from earlier models. Re-baseline when migrating.",
+        "Count before you design around a budget, especially for retrieval and few-shot prompts."
+      ],
+      "misconceptions": [
+        "That ~4 characters per token is accurate enough for billing decisions. It is a rough sanity check, not a measurement."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Token counting",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/token-counting",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "api-errors",
+      "trackID": "api",
+      "title": "Error handling that distinguishes causes",
+      "tier": 3,
+      "summary": "Catching one broad exception class throws away the information you need to decide whether to retry.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Write a retry policy that retries the right failures and no others",
+        "Map status codes to causes"
+      ],
+      "keyIdeas": [
+        "Retryable: 429, 5xx, 408, 409, and connection errors. Not retryable: 400, 401, 403, 404.",
+        "429 responses carry a retry-after header — respect it rather than inventing a backoff.",
+        "Catch a most-specific-first chain, not a single broad class.",
+        "SDK clients retry twice by default, so your wall-clock timeout is roughly timeout × (retries + 1)."
+      ],
+      "misconceptions": [
+        "That retrying a 400 might work. The request is malformed; it will fail identically forever.",
+        "That a timeout means the request did not happen. It may have completed server-side and been billed."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Errors",
+          "url": "https://docs.claude.com/en/api/errors",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "api-prompt-caching",
+      "trackID": "api",
+      "title": "Prompt caching",
+      "tier": 3,
+      "summary": "Caching is the single biggest cost lever available, and it is a prefix match — which makes it fragile in a specific, learnable way.",
+      "prerequisites": [
+        "api-content-blocks",
+        "context-window-budget"
+      ],
+      "objectives": [
+        "Place cache breakpoints correctly for a repeated workload",
+        "Predict whether a given change invalidates a cache"
+      ],
+      "keyIdeas": [
+        "Caching matches on an exact prefix. Any byte change anywhere in the prefix invalidates everything after it.",
+        "Render order is tools, then system, then messages. Order your prompt so stable content comes first.",
+        "Maximum 4 breakpoints per request; the minimum cacheable prefix is model-dependent (roughly 512–4096 tokens) and shorter prefixes silently do not cache.",
+        "Verify with usage.cache_read_input_tokens. If it is zero across repeats, something is invalidating silently."
+      ],
+      "misconceptions": [
+        "That caching stores your prompt semantically and matches similar ones. It is byte-exact prefix matching.",
+        "That enabling caching guarantees savings. A timestamp in the system prompt reduces it to zero, silently."
+      ],
+      "practiceKinds": [
+        "code",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "api-cache-invalidation",
+      "trackID": "api",
+      "title": "Finding silent cache invalidators",
+      "tier": 4,
+      "summary": "A cache hit rate of zero produces no error. You have to go looking.",
+      "prerequisites": [
+        "api-prompt-caching"
+      ],
+      "objectives": [
+        "Audit a codebase for cache invalidators",
+        "Use usage fields to confirm a cache is working"
+      ],
+      "keyIdeas": [
+        "Classic invalidators: datetime.now() in the system prompt, unsorted JSON keys, a tool list built from a set, per-request IDs, a varying user name.",
+        "Changing the model, or changing top-level effort mid-conversation, also invalidates — caches are model-scoped.",
+        "A multi-model cost cascade forfeits cache reuse across its models. Measure before assuming a cascade is cheaper.",
+        "Mid-conversation system messages exist partly so you can add operator instructions without resetting the cache."
+      ],
+      "misconceptions": [
+        "That cache misses show up as errors or warnings. They are silent; only the usage fields tell you.",
+        "That putting cache_control on something makes it cached. It must also exceed the model's minimum prefix length."
+      ],
+      "practiceKinds": [
+        "investigation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "api-structured-outputs",
+      "trackID": "api",
+      "title": "Getting reliable structured data",
+      "tier": 3,
+      "summary": "Two mechanisms, different guarantees and different portability.",
+      "prerequisites": [
+        "api-content-blocks",
+        "prompt-output-shaping"
+      ],
+      "objectives": [
+        "Choose between output_config.format and a strict tool for a given case",
+        "Write a schema that a strict tool will accept"
+      ],
+      "keyIdeas": [
+        "output_config.format constrains the whole response to a JSON schema. The deprecated top-level output_format parameter is not the same thing.",
+        "strict: true on a tool definition guarantees tool_use.input validates exactly; it needs additionalProperties: false and a required list.",
+        "strict tools are portable across Bedrock and Vertex; some newer response-format features are not.",
+        "Structured outputs and citations are mutually exclusive — combining them returns a 400."
+      ],
+      "misconceptions": [
+        "That strict goes on tool_choice. It is a top-level field on the tool definition.",
+        "That forcing tool_choice is always available. It returns a 400 on some current models; auto plus an explicit instruction is the portable pattern."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Structured outputs",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/structured-outputs",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "api-thinking-adaptive",
+      "trackID": "api",
+      "title": "Adaptive thinking in the API",
+      "tier": 3,
+      "summary": "The API surface for reasoning changed. Code written from memory is likely to 400.",
+      "prerequisites": [
+        "api-content-blocks",
+        "prompt-thinking"
+      ],
+      "objectives": [
+        "Configure thinking correctly for a named model",
+        "Handle thinking blocks when continuing a conversation"
+      ],
+      "keyIdeas": [
+        "thinking: {type: 'adaptive'} is the current form. budget_tokens is removed on Opus 5 / Sonnet 5 and returns a 400.",
+        "On Opus 5, thinking is on by default; {type: 'disabled'} is accepted only at effort high or below.",
+        "thinking.display controls visibility only. The default 'omitted' returns empty thinking blocks; 'summarized' returns a readable summary. Thinking is billed either way.",
+        "Echo thinking blocks back unchanged when continuing on the same model."
+      ],
+      "misconceptions": [
+        "That disabling thinking saves money reliably on Opus 5. Low effort with thinking on is usually cheaper and better.",
+        "That an empty thinking block means the model did not think. It means display is set to omitted."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Extended thinking",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/extended-thinking",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "api-effort",
+      "trackID": "api",
+      "title": "Effort as a cost lever",
+      "tier": 3,
+      "summary": "One parameter trades thoroughness against spend within a single model — often better than switching models.",
+      "prerequisites": [
+        "api-thinking-adaptive"
+      ],
+      "objectives": [
+        "Pick an effort level for a workload and justify it",
+        "Explain why effort beats a model cascade in some cases"
+      ],
+      "keyIdeas": [
+        "output_config: {effort: 'low'|'medium'|'high'|'xhigh'|'max'}. It nests inside output_config, not top-level. Default is high.",
+        "xhigh suits coding and agentic work; low suits subagents, classification, and high-volume routes.",
+        "Lower effort on a newer model often matches a previous generation at high effort — measure before building a cascade.",
+        "Changing top-level effort mid-conversation invalidates the messages cache."
+      ],
+      "misconceptions": [
+        "That max effort is 'the good setting'. It earns its cost only on genuinely hard problems.",
+        "That effort is a top-level parameter. It lives in output_config."
+      ],
+      "practiceKinds": [
+        "investigation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "api-files",
+      "trackID": "api",
+      "title": "Documents, PDFs and citations",
+      "tier": 3,
+      "summary": "Feeding real documents in, and getting verifiable answers back out.",
+      "prerequisites": [
+        "api-content-blocks"
+      ],
+      "objectives": [
+        "Send a PDF and get an answer with citations",
+        "Choose between inline base64 and the Files API"
+      ],
+      "keyIdeas": [
+        "PDFs go in as a document content block with a base64 source, placed before the text block. Limits: 32 MB request, 600 pages.",
+        "The Files API uploads once and references by file_id across requests — better when the same document is used repeatedly.",
+        "citations: {enabled: true} on a document block splits the response into cited text blocks with char or page locations.",
+        "The content-block type must match the file's MIME type: document for PDF/text, image for images."
+      ],
+      "misconceptions": [
+        "That citations are the model quoting from memory. They are structured references into the supplied document with real offsets.",
+        "That the Files API is available everywhere. It is not on Bedrock or Vertex."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Files API",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/files",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Citations",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/citations",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "api-batches",
+      "trackID": "api",
+      "title": "Batch processing",
+      "tier": 4,
+      "summary": "Half price, if you can wait.",
+      "prerequisites": [
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Decide whether a workload suits the Batches API",
+        "Handle batch results correctly"
+      ],
+      "keyIdeas": [
+        "Batches run asynchronously at 50% of standard cost. Submit, poll processing_status until 'ended', then stream results.",
+        "Each result carries a custom_id and a result type of succeeded / errored / canceled / expired.",
+        "Results arrive in arbitrary order — key by custom_id, never by position.",
+        "Batches are first-party only; not available on Bedrock or Vertex."
+      ],
+      "misconceptions": [
+        "That batch is just a slower synchronous call. Results are unordered and individually fallible.",
+        "That batching helps latency-sensitive work. It is the explicit trade of latency for cost."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Message Batches",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/batch-processing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "api-cost-model",
+      "trackID": "api",
+      "title": "What a request actually costs",
+      "tier": 3,
+      "summary": "Reasoning about spend requires knowing which tokens bill at which rate.",
+      "prerequisites": [
+        "api-token-counting",
+        "api-prompt-caching"
+      ],
+      "objectives": [
+        "Compute the cost of a described workload",
+        "Explain why cost per completed task differs from cost per request"
+      ],
+      "keyIdeas": [
+        "Input and output bill at different rates, output several times higher. Opus 5 is $5/$25 per million; Sonnet 5 $2/$10; Haiku 4.5 $1/$5.",
+        "Cache writes cost more than plain input; cache reads cost a small fraction of it. Caching pays off from roughly the second hit.",
+        "Thinking tokens are billed as output whether or not you display them.",
+        "Judge cost per completed task: a cheaper model that needs three attempts is not cheaper."
+      ],
+      "misconceptions": [
+        "That the cheapest model is the cheapest option. Retries, longer outputs, and more turns often invert the ranking.",
+        "That Bedrock and first-party pricing match. Bedrock is partner-operated with its own pricing."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "api-compaction-context-editing",
+      "trackID": "api",
+      "title": "Compaction, context editing, and memory",
+      "tier": 5,
+      "summary": "Three different answers to 'the conversation got too long', and they are not interchangeable.",
+      "prerequisites": [
+        "api-prompt-caching",
+        "context-engineering"
+      ],
+      "objectives": [
+        "Choose the right long-conversation strategy for a given agent",
+        "Explain the difference between clearing and summarising"
+      ],
+      "keyIdeas": [
+        "Compaction summarises earlier context automatically as it approaches a threshold. You must append the full response content back each turn or the compaction state is silently lost.",
+        "Context editing clears old tool results or thinking blocks rather than summarising them.",
+        "The memory tool persists information outside the context window entirely, under the model's control.",
+        "These solve different problems: compaction preserves gist, editing reclaims space, memory preserves facts across sessions."
+      ],
+      "misconceptions": [
+        "That compaction and context editing are the same feature. They use different parameters and different strategies.",
+        "That appending only the response text is fine. It drops the compaction blocks and breaks the mechanism silently."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Context windows",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/context-windows",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "tool-use-basics",
+      "trackID": "tools",
+      "title": "Defining a tool",
+      "tier": 2,
+      "summary": "A tool is a name, a description, and a JSON schema. The model never runs it — it asks you to.",
+      "prerequisites": [
+        "api-content-blocks"
+      ],
+      "objectives": [
+        "Define a tool and interpret the resulting tool_use block",
+        "Explain who actually executes a tool"
+      ],
+      "keyIdeas": [
+        "A tool definition is name, description, and input_schema. Nothing else is required.",
+        "The model returns a tool_use block with an id, the tool name, and an input object. Execution is entirely yours.",
+        "stop_reason becomes 'tool_use' — the turn is unfinished until you return results.",
+        "Parse tool inputs with a real JSON parser. Escaping in the input field varies between models."
+      ],
+      "misconceptions": [
+        "That the model executes tools. It emits a request; your code runs it.",
+        "That tool use requires a different endpoint or SDK. It is a parameter on /v1/messages."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "tool-result-loop",
+      "trackID": "tools",
+      "title": "The agentic loop",
+      "tier": 2,
+      "summary": "Request, tool_use, execute, tool_result, repeat until end_turn. Everything agentic is this loop.",
+      "prerequisites": [
+        "tool-use-basics"
+      ],
+      "objectives": [
+        "Implement a correct tool-use loop by hand",
+        "Explain the message structure a tool result must have"
+      ],
+      "keyIdeas": [
+        "Append the assistant's full content array, then a user message whose content is the tool_result blocks.",
+        "A tool_result references the tool_use id it answers. Mismatched or missing ids break the turn.",
+        "Loop while stop_reason == 'tool_use'; stop on end_turn.",
+        "Guard the loop with an iteration cap. A model that keeps calling tools will otherwise run until your budget does."
+      ],
+      "misconceptions": [
+        "That you can summarise a tool result in prose instead of returning a tool_result block. The API requires the block.",
+        "That the loop terminates naturally. Without a cap, it sometimes does not."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic cookbook",
+          "url": "https://github.com/anthropics/anthropic-cookbook",
+          "kind": "cookbook"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "tool-schemas",
+      "trackID": "tools",
+      "title": "Writing schemas the model can use",
+      "tier": 3,
+      "summary": "The description field is a prompt. Most tool-calling failures are schema-writing failures.",
+      "prerequisites": [
+        "tool-use-basics"
+      ],
+      "objectives": [
+        "Write a tool description that prevents the common misuse of that tool",
+        "Diagnose a tool the model calls at the wrong time"
+      ],
+      "keyIdeas": [
+        "The description is the only thing telling the model when to call the tool — say when *not* to, as well as when to.",
+        "Describe every parameter, including units, formats, and defaults. 'date' is ambiguous; 'ISO 8601 date, UTC' is not.",
+        "Enums beat free strings wherever the value set is closed.",
+        "Fewer, better-named tools beat many overlapping ones — an overlapping surface makes selection ambiguous."
+      ],
+      "misconceptions": [
+        "That the schema alone is enough and descriptions are documentation. The description drives selection.",
+        "That more tools make an agent more capable. Past a point they make it less reliable."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "tool-strict",
+      "trackID": "tools",
+      "title": "Strict tools",
+      "tier": 3,
+      "summary": "Guaranteeing that tool arguments validate, rather than hoping.",
+      "prerequisites": [
+        "tool-schemas",
+        "api-structured-outputs"
+      ],
+      "objectives": [
+        "Convert a tool to strict mode and handle the schema requirements",
+        "Explain what strict does and does not guarantee"
+      ],
+      "keyIdeas": [
+        "strict: true is a top-level field on the tool definition, alongside name and input_schema.",
+        "The schema must set additionalProperties: false and list required fields.",
+        "It guarantees the arguments validate against the schema. It does not guarantee they are semantically correct.",
+        "strict is incompatible with programmatic tool calling."
+      ],
+      "misconceptions": [
+        "That strict prevents the model calling the tool at the wrong moment. It only constrains argument shape."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Structured outputs",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/structured-outputs",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "tool-parallel",
+      "trackID": "tools",
+      "title": "Parallel tool calls",
+      "tier": 3,
+      "summary": "One assistant turn can request several tools at once, and mishandling that quietly degrades the model's behaviour.",
+      "prerequisites": [
+        "tool-result-loop"
+      ],
+      "objectives": [
+        "Handle a multi-tool-call turn correctly",
+        "Explain how splitting results trains the model out of parallelism"
+      ],
+      "keyIdeas": [
+        "Parallel calls are on by default. One assistant message may contain several tool_use blocks.",
+        "Execute them concurrently, then return every tool_result in a single user message.",
+        "Splitting results across multiple messages teaches the model to stop calling tools in parallel — a silent performance regression.",
+        "disable_parallel_tool_use exists when ordering genuinely matters."
+      ],
+      "misconceptions": [
+        "That returning results one at a time is equivalent, just slower. It changes future model behaviour."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "tool-errors",
+      "trackID": "tools",
+      "title": "Failing tools",
+      "tier": 3,
+      "summary": "How you report a tool failure determines whether the model can recover from it.",
+      "prerequisites": [
+        "tool-result-loop"
+      ],
+      "objectives": [
+        "Return a tool error the model can act on",
+        "Decide what to put in an error message"
+      ],
+      "keyIdeas": [
+        "Return a tool_result with is_error: true. Never drop the block — a missing result breaks the turn.",
+        "Error text is read by the model. 'Error 500' is useless; 'city not found, try a full name with country' is actionable.",
+        "Do not leak stack traces, credentials, or internal hostnames into tool results — that text enters the context window.",
+        "Distinguish retryable failures from permanent ones in the message, or the model will retry forever."
+      ],
+      "misconceptions": [
+        "That throwing an exception in your handler and skipping the result is safe. It corrupts the conversation."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "server-tools",
+      "trackID": "tools",
+      "title": "Server-side tools",
+      "tier": 3,
+      "summary": "Some tools run on Anthropic's infrastructure. You declare them and read the results — there is no loop to write.",
+      "prerequisites": [
+        "tool-use-basics"
+      ],
+      "objectives": [
+        "Declare a server-side tool and read its result blocks",
+        "Name which server tools exist and where they are unavailable"
+      ],
+      "keyIdeas": [
+        "Web search, web fetch, code execution, and tool search execute server-side; results come back as content blocks in the same response.",
+        "Web fetch only fetches URLs already present in the conversation.",
+        "Use the newest type variant your model supports; older variants lack dynamic filtering.",
+        "None of the web or code-execution server tools are available on Bedrock — this is one of the sharpest first-party/Bedrock differences."
+      ],
+      "misconceptions": [
+        "That server tools need a client-side execution loop like custom tools. They do not.",
+        "That declaring code_execution alongside the newer web search variants is helpful. It confuses the model — those variants already run code internally."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "server-tool-errors",
+      "trackID": "tools",
+      "title": "Server tool failures don't raise",
+      "tier": 4,
+      "summary": "A failed web search returns HTTP 200 and a perfectly ordinary-looking result block.",
+      "prerequisites": [
+        "server-tools",
+        "tool-errors"
+      ],
+      "objectives": [
+        "Detect a server-tool error correctly",
+        "Explain the shape difference between success and failure"
+      ],
+      "keyIdeas": [
+        "Errors arrive as a web_search_tool_result / web_fetch_tool_result block whose content is an error object, at HTTP 200.",
+        "For web search, success content is a list and error content is an object — branch on that before indexing.",
+        "No exception is raised, so try/except around the call catches nothing.",
+        "Common codes include max_uses_exceeded and blocked-domain rejections."
+      ],
+      "misconceptions": [
+        "That a 200 response means every server tool in it succeeded."
+      ],
+      "practiceKinds": [
+        "code",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "agent-vs-workflow",
+      "trackID": "tools",
+      "title": "Should this be an agent at all?",
+      "tier": 3,
+      "summary": "Most problems people build agents for are better served by a workflow. Four criteria decide it.",
+      "prerequisites": [
+        "prompt-decomposition",
+        "tool-result-loop"
+      ],
+      "objectives": [
+        "Apply the four criteria to a proposed agent and reach a defensible answer",
+        "Distinguish a workflow from an agent precisely"
+      ],
+      "keyIdeas": [
+        "The criteria: complexity (is the task hard to specify up front?), value (does it justify cost and latency?), viability (is the model good at it?), and cost of error (can mistakes be caught and undone?).",
+        "A workflow has control flow you wrote. An agent decides its own path. That is the whole distinction.",
+        "Start at the simplest tier that works: single call, then workflow, then agent.",
+        "If any of the four criteria fails, stay at a simpler tier."
+      ],
+      "misconceptions": [
+        "That agents are the advanced, therefore better, option. They are the expensive, less predictable option that some problems require.",
+        "That a chain of prompts is an agent. It is a workflow."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "agent-loop-manual",
+      "trackID": "tools",
+      "title": "Writing the loop yourself",
+      "tier": 4,
+      "summary": "Owning the loop means owning termination, error recovery, and context growth.",
+      "prerequisites": [
+        "tool-result-loop",
+        "agent-vs-workflow"
+      ],
+      "objectives": [
+        "Build an agent loop with termination, error handling, and a budget",
+        "Explain what grows unboundedly in a naive loop"
+      ],
+      "keyIdeas": [
+        "The loop is: send, check stop_reason, execute tools, append results, repeat.",
+        "Context grows every iteration. Without compaction or context editing, a long run walks into the window limit.",
+        "Cap iterations, cap wall-clock time, and cap spend. All three, not one.",
+        "Log every tool call and result — an agent you cannot replay is an agent you cannot debug."
+      ],
+      "misconceptions": [
+        "That the model reliably stops when the task is done. Sometimes it loops; you need the cap.",
+        "That a task budget and max_tokens are the same. A task budget is advisory and the model paces against it; max_tokens is an unannounced cut-off."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic cookbook",
+          "url": "https://github.com/anthropics/anthropic-cookbook",
+          "kind": "cookbook"
+        }
+      ],
+      "estimatedMinutes": 12
+    },
+    {
+      "id": "tool-runner",
+      "trackID": "tools",
+      "title": "The SDK tool runner",
+      "tier": 4,
+      "summary": "The loop, written for you, with hooks where you need control.",
+      "prerequisites": [
+        "agent-loop-manual"
+      ],
+      "objectives": [
+        "Use the tool runner and know what its hooks are for",
+        "Decide between the runner and a hand-written loop"
+      ],
+      "keyIdeas": [
+        "The tool runner lives on the regular SDK at client.beta.messages.tool_runner and drives request → execute → repeat over tools you define.",
+        "Per-turn hooks give you approval gates, logging, error interception, result modification, and retries.",
+        "It supplies no built-in tools and no sandbox — you define every tool and host the compute.",
+        "Write the loop by hand only when you need control flow the hooks cannot express."
+      ],
+      "misconceptions": [
+        "That the tool runner is the Claude Agent SDK. They are different packages with different scopes."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "agent-sdk-vs-tool-runner",
+      "trackID": "tools",
+      "title": "Four ways to build an agent",
+      "tier": 4,
+      "summary": "Manual loop, tool runner, Managed Agents, Claude Agent SDK. Two questions separate them.",
+      "prerequisites": [
+        "tool-runner"
+      ],
+      "objectives": [
+        "Pick the right one of the four approaches for a described project",
+        "State who supplies the harness and who supplies the deployment in each"
+      ],
+      "keyIdeas": [
+        "Two independent questions: who supplies the harness (loop plus context management), and who supplies the deployment.",
+        "Manual loop: you supply both. Tool runner: SDK supplies the harness, you host. Claude Agent SDK: supplies the Claude Code harness plus built-in tools, you host.",
+        "Managed Agents is the only one that supplies harness *and* hosted per-session sandbox.",
+        "The Claude Agent SDK is a separate product from the API SDK's tool runner, despite the similar names."
+      ],
+      "misconceptions": [
+        "That the tool runner and the Agent SDK are two names for one thing. The runner has no built-in tools and no filesystem access."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Claude Agent SDK",
+          "url": "https://code.claude.com/docs/en/agent-sdk",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "mcp-basics",
+      "trackID": "tools",
+      "title": "Model Context Protocol",
+      "tier": 4,
+      "summary": "A standard way to expose tools and resources to a model, so integrations are written once.",
+      "prerequisites": [
+        "tool-use-basics"
+      ],
+      "objectives": [
+        "Explain what MCP standardises and connect a server",
+        "Name the two halves an MCP connector request needs"
+      ],
+      "keyIdeas": [
+        "MCP is an open protocol for exposing tools, resources, and prompts to model clients.",
+        "The API's MCP connector needs both halves: mcp_servers with the URL, and a tools entry of type mcp_toolset naming the same server. Sending only the first is a validation error.",
+        "MCP servers are third-party code with access to your context — treat their tool descriptions and outputs as untrusted input.",
+        "Availability differs by platform: the connector is unavailable on Bedrock and Vertex."
+      ],
+      "misconceptions": [
+        "That MCP is an Anthropic-only protocol. It is an open standard with implementations across the ecosystem.",
+        "That an MCP server is inherently trustworthy because you installed it. Its tool descriptions enter your prompt."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "MCP connector",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/mcp-connector",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "agent-tool-surface",
+      "trackID": "tools",
+      "title": "Designing an agent's tool surface",
+      "tier": 5,
+      "summary": "Which tools you give an agent determines what it can do well, what it does badly, and what it can destroy.",
+      "prerequisites": [
+        "tool-schemas",
+        "agent-loop-manual"
+      ],
+      "objectives": [
+        "Design a tool surface for a stated agent goal and defend each inclusion",
+        "Apply least privilege to an agent's capabilities"
+      ],
+      "keyIdeas": [
+        "A general bash tool is maximally flexible and maximally dangerous. Dedicated tools are narrower, safer, and easier to describe.",
+        "Least privilege applies to agents: read-only where possible, scoped credentials, no ambient authority.",
+        "Consequential and irreversible actions deserve an approval gate, not a well-worded description telling the model to be careful.",
+        "Tool search with deferred loading keeps a large surface usable — but at least one tool must stay non-deferred or the request 400s."
+      ],
+      "misconceptions": [
+        "That giving an agent more capability makes it more useful. Beyond the task's needs it mostly adds blast radius.",
+        "That you can restrict an agent by telling it what not to do. Permissions are enforced by your code, not by the prompt."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "managed-agents",
+      "trackID": "tools",
+      "title": "Managed Agents",
+      "tier": 5,
+      "summary": "Anthropic runs the loop and hosts the sandbox. You supply configuration instead of infrastructure.",
+      "prerequisites": [
+        "agent-loop-manual"
+      ],
+      "objectives": [
+        "Describe the agent/session lifecycle and when this beats self-hosting",
+        "Explain what the per-session container provides"
+      ],
+      "keyIdeas": [
+        "The flow is mandatory: create an Agent once (model, system, tools live there), then create a Session per run.",
+        "Each session provisions a container as the workspace — bash, file operations, and code execution run there.",
+        "Sessions stream events; you send messages and tool results back. Scheduled deployments fire sessions on a cron cadence.",
+        "Agents are persistent, versioned objects. Create them out-of-band, never in the request path."
+      ],
+      "misconceptions": [
+        "That model and tools go on the session. They belong to the agent; sessions reference it.",
+        "That Managed Agents is available everywhere. It is not on Bedrock or Vertex."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "subagents-fanout",
+      "trackID": "tools",
+      "title": "Fanning out to subagents",
+      "tier": 5,
+      "summary": "When one agent's context would fill with reading, delegate the reading.",
+      "prerequisites": [
+        "agent-tool-surface"
+      ],
+      "objectives": [
+        "Identify work that should fan out to subagents",
+        "Explain the context economics of delegation"
+      ],
+      "keyIdeas": [
+        "Fan out when work is naturally parallel — research across sources, per-file analysis — or when one loop would fill its context with material it only needs to summarise.",
+        "Each subagent has its own context window. The parent sees only the summary, which is the point.",
+        "Reading-heavy subtasks are good candidates for a cheaper model; judgement-heavy ones are not.",
+        "Subagents cost real tokens and start cold. Delegation that re-derives context you already have is a loss."
+      ],
+      "misconceptions": [
+        "That more subagents means faster. Coordination overhead and cold starts often dominate.",
+        "That a subagent inherits the parent's conversation. It starts fresh with what you pass it."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Subagents",
+          "url": "https://code.claude.com/docs/en/sub-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "cc-mental-model",
+      "trackID": "claude-code",
+      "title": "What Claude Code actually is",
+      "tier": 3,
+      "summary": "A harness: an agent loop plus built-in tools plus permissions, wrapped around a model. Knowing the parts makes the behaviour predictable.",
+      "prerequisites": [
+        "agent-vs-workflow"
+      ],
+      "objectives": [
+        "Describe the components of the Claude Code harness",
+        "Explain why it behaves differently from a raw API call"
+      ],
+      "keyIdeas": [
+        "Claude Code is the agent loop, a set of built-in tools (read, write, edit, bash, glob, grep, web), context management, permissions, and hooks.",
+        "It runs in a terminal, a desktop app, the web, and IDE extensions — the same harness in different shells.",
+        "The system prompt, tool results, and your project files are all context it manages on your behalf.",
+        "Understanding it as an agent loop explains its failure modes: context exhaustion, tool misuse, and over-eager edits."
+      ],
+      "misconceptions": [
+        "That it is an autocomplete or a chat window with file access. It is an agent that plans and acts in a loop.",
+        "That its behaviour is fixed. Nearly all of it is configurable through settings, memory files, hooks, and skills."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code overview",
+          "url": "https://code.claude.com/docs/en/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "cc-context-files",
+      "trackID": "claude-code",
+      "title": "CLAUDE.md and project memory",
+      "tier": 3,
+      "summary": "The highest-leverage file in an agentic codebase. It is context that is loaded every session, so it is also a cost.",
+      "prerequisites": [
+        "cc-mental-model",
+        "context-engineering"
+      ],
+      "objectives": [
+        "Write a CLAUDE.md that changes agent behaviour measurably",
+        "Decide what belongs in memory versus a skill"
+      ],
+      "keyIdeas": [
+        "CLAUDE.md is loaded into context automatically. Put commands, conventions, architecture notes, and gotchas there.",
+        "Memory files nest: user-level, project-level, and directory-level, with the most specific winning.",
+        "Every line is resent every session. Keep it dense — a bloated memory file is a permanent tax on every request.",
+        "Write rules that are checkable ('run `make test` before claiming done'), not aspirational ('write good code')."
+      ],
+      "misconceptions": [
+        "That more detail in CLAUDE.md is strictly better. It is loaded every time and competes with your actual task.",
+        "That it is documentation for humans. It is a prompt."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory",
+          "url": "https://code.claude.com/docs/en/memory",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "cc-plan-mode",
+      "trackID": "claude-code",
+      "title": "Planning before editing",
+      "tier": 3,
+      "summary": "Separating 'decide what to do' from 'do it' catches wrong approaches while they are still cheap.",
+      "prerequisites": [
+        "cc-mental-model"
+      ],
+      "objectives": [
+        "Use plan mode effectively on a non-trivial change",
+        "Explain when planning is wasted effort"
+      ],
+      "keyIdeas": [
+        "Plan mode makes the agent propose an approach and stop for approval before touching anything.",
+        "It is most valuable when the change is large, the codebase is unfamiliar, or a wrong approach is expensive to unwind.",
+        "Reviewing a plan is far cheaper than reviewing a diff that implemented the wrong plan.",
+        "For a one-line fix it is pure overhead — the judgement is knowing which you have."
+      ],
+      "misconceptions": [
+        "That planning slows you down. It front-loads the disagreement to where it costs least."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code overview",
+          "url": "https://code.claude.com/docs/en/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "cc-permissions",
+      "trackID": "claude-code",
+      "title": "Permissions and settings",
+      "tier": 3,
+      "summary": "The enforcement boundary. Prompts ask; permissions decide.",
+      "prerequisites": [
+        "cc-mental-model"
+      ],
+      "objectives": [
+        "Configure an allowlist that removes routine prompts without widening real risk",
+        "Explain the difference between permission modes"
+      ],
+      "keyIdeas": [
+        "settings.json controls permissions, environment variables, and hooks, at user, project, and local scope.",
+        "Allowlist genuinely read-only commands to cut prompt fatigue; keep write and network operations gated.",
+        "Permission modes range from prompting on everything to accepting edits automatically. The mode is a risk decision, not a convenience one.",
+        "A denied call is a signal to change approach, not to retry the same thing differently worded."
+      ],
+      "misconceptions": [
+        "That permissions are advisory and the model could bypass them. The harness enforces them outside the model.",
+        "That bypassing permissions to move faster is free. It removes the last check before an irreversible action."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "cc-slash-commands",
+      "trackID": "claude-code",
+      "title": "Custom slash commands",
+      "tier": 3,
+      "summary": "A prompt you use twice should be a command.",
+      "prerequisites": [
+        "cc-mental-model"
+      ],
+      "objectives": [
+        "Write a slash command with arguments",
+        "Decide between a command and a skill"
+      ],
+      "keyIdeas": [
+        "Slash commands are Markdown files that expand into a prompt, with argument substitution.",
+        "They live at user or project scope, so a team can share a workflow.",
+        "Good candidates: review checklists, release steps, scaffolding, recurring investigations.",
+        "A command is a prompt template. A skill is a packaged capability with instructions and optional resources."
+      ],
+      "misconceptions": [
+        "That commands can execute code directly. They expand into a prompt; the agent still does the work."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Slash commands",
+          "url": "https://code.claude.com/docs/en/slash-commands",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 6
+    },
+    {
+      "id": "cc-skills",
+      "trackID": "claude-code",
+      "title": "Agent Skills",
+      "tier": 3,
+      "summary": "Packaged expertise the model loads only when relevant — the answer to 'my system prompt is too long'.",
+      "prerequisites": [
+        "cc-slash-commands"
+      ],
+      "objectives": [
+        "Write a skill with a description that triggers reliably",
+        "Explain progressive disclosure and why it saves context"
+      ],
+      "keyIdeas": [
+        "A skill is a folder with a SKILL.md — a name, a triggering description, and instructions, plus optional scripts and reference files.",
+        "Only the description sits in context until the skill triggers. That progressive disclosure is the entire point.",
+        "The description is the trigger. Vague descriptions mean the skill never fires; overbroad ones mean it fires constantly.",
+        "Skills work in Claude Code and, through the API, alongside code execution."
+      ],
+      "misconceptions": [
+        "That a skill is loaded whenever it exists. Only its description is, until it matches.",
+        "That skills and slash commands are interchangeable. Commands are invoked by name; skills are selected by relevance."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "cc-hooks",
+      "trackID": "claude-code",
+      "title": "Hooks: automation the model can't skip",
+      "tier": 4,
+      "summary": "When something must happen every time, do not ask the model to remember. Configure the harness.",
+      "prerequisites": [
+        "cc-permissions"
+      ],
+      "objectives": [
+        "Write a hook that enforces a project rule deterministically",
+        "Recognise which requirements need a hook rather than a memory-file instruction"
+      ],
+      "keyIdeas": [
+        "Hooks are shell commands the harness runs on lifecycle events — before or after a tool call, on session start, on stop.",
+        "They are deterministic. A CLAUDE.md instruction is a strong suggestion; a hook is a guarantee.",
+        "Classic uses: format on write, run tests before finishing, block edits to protected paths, inject environment setup at session start.",
+        "Hook output is fed back as feedback, so a failing hook can redirect the agent rather than just failing."
+      ],
+      "misconceptions": [
+        "That 'always run the linter' in CLAUDE.md is equivalent to a hook. One is followed usually; the other always.",
+        "That hooks run inside the model. They are shell commands run by the harness."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code hooks",
+          "url": "https://code.claude.com/docs/en/hooks",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Claude Code settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "cc-mcp-servers",
+      "trackID": "claude-code",
+      "title": "MCP servers in Claude Code",
+      "tier": 4,
+      "summary": "Extending the harness with external tools — and inheriting their trust properties.",
+      "prerequisites": [
+        "cc-mental-model",
+        "mcp-basics"
+      ],
+      "objectives": [
+        "Add an MCP server and scope its permissions",
+        "Assess the trust implications of a third-party server"
+      ],
+      "keyIdeas": [
+        "MCP servers are configured per user, project, or local scope and expose their tools alongside the built-ins.",
+        "Their tool descriptions enter your context and their outputs enter your conversation — both are untrusted input.",
+        "Scope credentials to the minimum the server needs; an MCP server with broad tokens is a broad liability.",
+        "Server tool names can collide with built-ins; namespacing matters on a busy setup."
+      ],
+      "misconceptions": [
+        "That an MCP server is inert configuration. It is executing code that shapes your prompt."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "MCP connector",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/mcp-connector",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "cc-subagents",
+      "trackID": "claude-code",
+      "title": "Subagents in practice",
+      "tier": 5,
+      "summary": "Delegation inside the harness, with the same context economics as the API version — and the same cold-start cost.",
+      "prerequisites": [
+        "cc-mental-model",
+        "subagents-fanout"
+      ],
+      "objectives": [
+        "Define a subagent with an appropriate tool scope",
+        "Decide when spawning costs more than it saves"
+      ],
+      "keyIdeas": [
+        "Subagents are defined in Markdown with frontmatter setting model, tools, and description.",
+        "Each starts cold with its own context. Anything it needs, you must pass.",
+        "Best for broad read-only searches and parallel independent investigations where you want the conclusion, not the transcript.",
+        "A subagent that re-derives context the parent already has is strictly more expensive than doing the work inline."
+      ],
+      "misconceptions": [
+        "That subagents share the parent's memory. They do not.",
+        "That a multi-part task implies delegation. Most multi-part tasks are cheaper handled inline."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Subagents",
+          "url": "https://code.claude.com/docs/en/sub-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "cc-effective-workflow",
+      "trackID": "claude-code",
+      "title": "Working well with an agent",
+      "tier": 4,
+      "summary": "The practices that separate people who get leverage from Claude Code from people who fight it.",
+      "prerequisites": [
+        "cc-plan-mode",
+        "cc-context-files"
+      ],
+      "objectives": [
+        "Structure a work session for a substantial change",
+        "Set up a codebase so an agent can verify its own work"
+      ],
+      "keyIdeas": [
+        "Give the agent a way to check itself: tests, a type checker, a linter, a runnable app. An agent without a feedback loop guesses.",
+        "Keep diffs small and reviewable. A 2000-line change from one prompt is unreviewable, so it is unmergeable.",
+        "Front-load the specification. Mid-task requirement discovery is where context and money go.",
+        "Commit at working checkpoints so a bad direction costs one revert, not a session."
+      ],
+      "misconceptions": [
+        "That the goal is to write the perfect single prompt. The goal is a tight loop with cheap correction.",
+        "That reviewing agent output is optional once it is usually right. Usually is where the incidents live."
+      ],
+      "practiceKinds": [
+        "investigation",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code overview",
+          "url": "https://code.claude.com/docs/en/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "cc-agent-sdk",
+      "trackID": "claude-code",
+      "title": "The Claude Agent SDK",
+      "tier": 5,
+      "summary": "Claude Code as a library — the same harness, driven by your code instead of a terminal.",
+      "prerequisites": [
+        "agent-sdk-vs-tool-runner",
+        "cc-mental-model"
+      ],
+      "objectives": [
+        "Build a custom agent on the Agent SDK and configure its tool surface",
+        "Explain what it provides beyond the API tool runner"
+      ],
+      "keyIdeas": [
+        "The Agent SDK ships the built-in tools, the agent loop, context management, hooks, subagents, permissions, and sessions.",
+        "You call query(prompt, options); it drives everything. You still host and deploy it.",
+        "It is a different package from the API SDK's tool runner and has its own documentation.",
+        "Use it when you want a batteries-included coding or filesystem agent on your own infrastructure."
+      ],
+      "misconceptions": [
+        "That it is the API SDK with extra helpers. It is a separate product built on the Claude Code harness."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Agent SDK",
+          "url": "https://code.claude.com/docs/en/agent-sdk",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "cc-headless-ci",
+      "trackID": "claude-code",
+      "title": "Agents in CI and automation",
+      "tier": 5,
+      "summary": "Running an agent where no human is watching changes every default you should pick.",
+      "prerequisites": [
+        "cc-agent-sdk",
+        "cc-hooks"
+      ],
+      "objectives": [
+        "Design a headless agent run with appropriate guardrails",
+        "Identify what must never be automated without approval"
+      ],
+      "keyIdeas": [
+        "Headless runs need explicit budgets: iteration caps, wall-clock limits, and spend limits.",
+        "Never use a mode that blocks for interactive approval in an unattended run — it will hang forever rather than fail.",
+        "Scope credentials to the job. A CI agent with production write access is a production incident waiting for a bad prompt.",
+        "Make the output reviewable: a pull request a human merges, not a direct push."
+      ],
+      "misconceptions": [
+        "That an agent that works interactively will work headless. The approval prompts you clicked through are now hangs.",
+        "That CI is a safe place to be permissive because it is a sandbox. CI usually holds the best credentials in the org."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Claude Agent SDK",
+          "url": "https://code.claude.com/docs/en/agent-sdk",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Claude Code settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "eval-why",
+      "trackID": "evals",
+      "title": "Why evals exist",
+      "tier": 3,
+      "summary": "Without measurement, every prompt change is a coin flip you remember as a success.",
+      "prerequisites": [
+        "prompt-iteration"
+      ],
+      "objectives": [
+        "Explain why vibes-based iteration plateaus",
+        "Identify the point in a project where an eval starts paying for itself"
+      ],
+      "keyIdeas": [
+        "Model outputs vary run to run. A single good result after a change is not evidence the change helped.",
+        "Confirmation bias is severe here: you remember the run that confirmed your fix.",
+        "An eval turns 'this feels better' into a number you can defend and a regression you can catch.",
+        "Twenty real cases beat two hundred synthetic ones. Start small and grow from failures."
+      ],
+      "misconceptions": [
+        "That you need a large formal eval before it is worth doing. Twenty cases in a file is already transformative.",
+        "That evals are for research teams. They are how you avoid shipping a regression on a Friday."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Defining success criteria",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/define-success",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 7
+    },
+    {
+      "id": "eval-dataset",
+      "trackID": "evals",
+      "title": "Sourcing eval cases",
+      "tier": 3,
+      "summary": "Where the cases come from determines whether the number means anything.",
+      "prerequisites": [
+        "eval-why"
+      ],
+      "objectives": [
+        "Assemble an eval set from real traffic and known failures",
+        "Explain why purely synthetic sets mislead"
+      ],
+      "keyIdeas": [
+        "Real production inputs are the gold standard: they carry the messiness synthetic cases smooth away.",
+        "Every bug you fix should become a case. That is how the set grows into a regression suite for free.",
+        "Include the hard tail deliberately: ambiguous inputs, adversarial ones, and cases that should be refused.",
+        "Synthesised cases are useful for coverage, but a set made only of them measures your imagination."
+      ],
+      "misconceptions": [
+        "That eval cases should be representative-average. Average cases are already passing; the tail is where the score moves.",
+        "That you need labelled ground truth for everything. Many useful graders check properties, not exact answers."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Defining success criteria",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/define-success",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "eval-graders",
+      "trackID": "evals",
+      "title": "Choosing a grader",
+      "tier": 3,
+      "summary": "Grading method is the design decision that decides whether your eval is trustworthy.",
+      "prerequisites": [
+        "eval-dataset"
+      ],
+      "objectives": [
+        "Pick a grading method for a given task type",
+        "Explain the cost and reliability tradeoffs between grader kinds"
+      ],
+      "keyIdeas": [
+        "Exact match and regex: cheap, deterministic, only work for closed-form answers.",
+        "Code graders: run the output, check properties — the best option whenever the output is executable or structured.",
+        "LLM judges: flexible, necessary for open-ended text, but need their own validation.",
+        "Human review: the ground truth all other graders are approximating. Expensive, so spend it on calibrating the cheap graders."
+      ],
+      "misconceptions": [
+        "That an LLM judge is the default because it handles anything. Prefer a deterministic grader whenever one exists.",
+        "That a grader needs no validation. An unvalidated grader turns a measurement into a random number."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Defining success criteria",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/define-success",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "eval-llm-judge",
+      "trackID": "evals",
+      "title": "Building a judge you can trust",
+      "tier": 4,
+      "summary": "A judge is a model call, so everything you know about prompting applies — including that it can be confidently wrong.",
+      "prerequisites": [
+        "eval-graders"
+      ],
+      "objectives": [
+        "Build and validate an LLM judge against human labels",
+        "Identify the standard judge biases"
+      ],
+      "keyIdeas": [
+        "Give the judge a rubric with concrete criteria, not 'rate this 1-10'. Ask for a per-criterion verdict.",
+        "Validate against human labels on a sample. If the judge does not correlate with you, its score is noise.",
+        "Known biases: position (favouring the first option), length (favouring longer answers), and self-preference.",
+        "Binary or few-point scales are more reliable than fine-grained ones. A judge cannot really tell a 7 from an 8."
+      ],
+      "misconceptions": [
+        "That a strong model makes a reliable judge automatically. Capability does not remove positional and length bias.",
+        "That the judge should be the same prompt as the task. Judging and doing are different jobs."
+      ],
+      "practiceKinds": [
+        "code",
+        "prompt"
+      ],
+      "sources": [
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "eval-splits",
+      "trackID": "evals",
+      "title": "Train, validation, and test",
+      "tier": 4,
+      "summary": "Tune against one set for long enough and your score measures the set, not the system.",
+      "prerequisites": [
+        "eval-dataset"
+      ],
+      "objectives": [
+        "Split an eval set correctly and explain what each split is for",
+        "Recognise the symptoms of an overfitted eval"
+      ],
+      "keyIdeas": [
+        "Train: what you look at while iterating. Validation: what you check each round. Test: touched rarely, reported as the headline.",
+        "Every look at the test set leaks a little information into your decisions. Looking constantly makes it a training set.",
+        "A score climbing on train while flat on test means you are fitting the cases, not the task.",
+        "Keep the split stable. Reshuffling between rounds makes the trend meaningless."
+      ],
+      "misconceptions": [
+        "That overfitting is only a training-a-model concern. Hand-tuning prompts against a fixed set overfits just as readily."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "eval-hillclimb",
+      "trackID": "evals",
+      "title": "The improvement loop",
+      "tier": 4,
+      "summary": "A disciplined loop: read failures, change one thing, re-run, record, keep or revert.",
+      "prerequisites": [
+        "eval-splits",
+        "eval-graders"
+      ],
+      "objectives": [
+        "Run a full hillclimb round and decide correctly whether to keep a change",
+        "Set a stopping condition before starting"
+      ],
+      "keyIdeas": [
+        "Read the actual failures before changing anything. Most changes are made without looking at what broke.",
+        "One change per round, or you cannot attribute the result.",
+        "Record every round: what changed, the scores, the decision. Otherwise you re-try what you already ruled out.",
+        "Set a budget and a stopping condition up front — hillclimbing has no natural end."
+      ],
+      "misconceptions": [
+        "That a change which improves the score is always worth keeping. Check the cost and latency it added.",
+        "That you should keep going while the score rises. Diminishing returns arrive early; the budget decides."
+      ],
+      "practiceKinds": [
+        "investigation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "eval-regression",
+      "trackID": "evals",
+      "title": "Evals as regression tests",
+      "tier": 4,
+      "summary": "The eval's second job — catching what a change broke — is worth more over time than its first.",
+      "prerequisites": [
+        "eval-hillclimb"
+      ],
+      "objectives": [
+        "Wire an eval into CI with a sensible failure threshold",
+        "Explain what a model upgrade should trigger"
+      ],
+      "keyIdeas": [
+        "Run the eval on every change to prompts, tools, or model configuration.",
+        "Set a threshold that accounts for run-to-run variance, or you will get flaky failures and start ignoring them.",
+        "Track per-case results, not just the aggregate — an unchanged mean can hide a fixed case and a newly broken one.",
+        "A model version change is a code change and needs the same gate."
+      ],
+      "misconceptions": [
+        "That a stable aggregate score means nothing regressed. Offsetting changes hide behind a mean."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "eval-cost-quality",
+      "trackID": "evals",
+      "title": "Measuring cost against quality",
+      "tier": 4,
+      "summary": "Once you can measure quality, you can find the cheapest configuration that holds it.",
+      "prerequisites": [
+        "eval-hillclimb",
+        "api-cost-model"
+      ],
+      "objectives": [
+        "Run an effort or model sweep and read the results",
+        "Explain cost per completed task"
+      ],
+      "keyIdeas": [
+        "Sweep effort levels and models against the same eval and plot quality against cost. The knee is usually not at the top.",
+        "Measure cost per completed task, not per request: retries and extra turns belong in the numerator.",
+        "Free wins first — caching and input hygiene — before quality-trading levers like effort and model choice.",
+        "Tune per route. A summariser and a coding agent do not want the same settings."
+      ],
+      "misconceptions": [
+        "That the highest-quality configuration is the right default. It is the right default only for the routes that need it."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "model-migration",
+      "trackID": "evals",
+      "title": "Migrating to a new model",
+      "tier": 5,
+      "summary": "A migration is a prompt change, an API-surface change, and a re-tune — not a string swap.",
+      "prerequisites": [
+        "eval-regression",
+        "prompt-cruft"
+      ],
+      "objectives": [
+        "Plan a migration covering API changes, prompt cruft, and re-validation",
+        "Identify breaking changes between model generations"
+      ],
+      "keyIdeas": [
+        "Three workstreams: API surface changes, prompting written for the old model, and re-tuning effort and parameters.",
+        "Known breaking changes across recent generations include removed prefill, removed budget_tokens, removed sampling parameters, and changed thinking defaults.",
+        "Tokenizers change between generations, so re-baseline token counts and cost rather than assuming they carry over.",
+        "Run the eval before and after on the same split. The migration is done when the numbers say so."
+      ],
+      "misconceptions": [
+        "That a newer model is strictly better everywhere, so no validation is needed. Behaviour shifts, and prompts tuned to the old model can score worse.",
+        "That migration is finished when the code stops 400ing. That is where it starts."
+      ],
+      "practiceKinds": [
+        "investigation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Models overview",
+          "url": "https://docs.claude.com/en/docs/about-claude/models/overview",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Evaluating prompts",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/eval-tool",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "aws-account-basics",
+      "trackID": "aws",
+      "title": "Accounts, regions, and the console",
+      "tier": 1,
+      "summary": "The three coordinates that locate anything in AWS: which account, which region, which service.",
+      "prerequisites": [],
+      "objectives": [
+        "Explain what an AWS account is and why regions matter",
+        "Locate a resource given an account, region, and service"
+      ],
+      "keyIdeas": [
+        "An AWS account is a billing and isolation boundary. Everything you create lives inside one.",
+        "A region is a physical geography (us-east-1, eu-west-1). Most services are regional: a thing created in one region does not exist in another.",
+        "This bites constantly with Bedrock — a model enabled in us-east-1 is not enabled in eu-west-1.",
+        "The root user is the account owner and should be locked away behind MFA and never used for daily work."
+      ],
+      "misconceptions": [
+        "That AWS is one global system. Nearly everything is per-region, and resources do not roam.",
+        "That the root user is just the first admin. It can do things no policy can restrict; it is for emergencies."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "What is Amazon Bedrock",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Regions and Availability Zones",
+          "url": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 6,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "aws-iam-fundamentals",
+      "trackID": "aws",
+      "title": "IAM: identities and policies",
+      "tier": 1,
+      "summary": "Who can do what to which resource. Every AWS access problem is an IAM problem.",
+      "prerequisites": [
+        "aws-account-basics"
+      ],
+      "objectives": [
+        "Read an IAM policy and say what it permits",
+        "Explain the difference between a user, a role, and a policy"
+      ],
+      "keyIdeas": [
+        "An identity (user or role) is *who*. A policy is *what they may do*. Attaching a policy grants it.",
+        "Policies are JSON: Effect, Action, Resource, and optionally Condition.",
+        "Default deny: nothing is permitted unless a policy allows it, and an explicit Deny always wins.",
+        "Roles are assumed temporarily rather than owned — the preferred mechanism for services and for humans via SSO."
+      ],
+      "misconceptions": [
+        "That an IAM user is the normal way to give access. Roles with temporary credentials are; users with long-lived keys are the legacy path.",
+        "That a broad allow somewhere is harmless if a narrower policy exists. Any allow grants, unless something explicitly denies."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "IAM user guide",
+          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "aws-credentials",
+      "trackID": "aws",
+      "title": "Credentials and why the long-lived kind are dangerous",
+      "tier": 2,
+      "summary": "An access key pair is a password that does not expire and does not get rotated. That is the whole problem.",
+      "prerequisites": [
+        "aws-iam-fundamentals"
+      ],
+      "objectives": [
+        "Choose the right credential type for a given caller",
+        "Explain the risk profile of a long-lived access key"
+      ],
+      "keyIdeas": [
+        "A long-lived access key is an ID and a secret with no expiry. Leaked, it stays valid until someone notices.",
+        "Temporary credentials from STS carry an expiry and a session token, and are the correct default.",
+        "On EC2, ECS, and Lambda, the runtime supplies credentials automatically through the instance or task role — never embed keys there.",
+        "For a mobile or browser client, the pattern is a Cognito Identity Pool or your own backend, not a bundled key."
+      ],
+      "misconceptions": [
+        "That an access key restricted by IAM is safe to ship in a client. Restricted or not, it is your credential spending your money.",
+        "That rotating keys occasionally solves this. Expiry measured in minutes beats rotation measured in months."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "IAM user guide",
+          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "aws-cli-setup",
+      "trackID": "aws",
+      "title": "The AWS CLI and credential resolution",
+      "tier": 2,
+      "summary": "Knowing the resolution order turns 'it works on my machine' into a five-second diagnosis.",
+      "prerequisites": [
+        "aws-credentials"
+      ],
+      "objectives": [
+        "Configure a named profile and verify which identity is active",
+        "Recite the credential resolution order"
+      ],
+      "keyIdeas": [
+        "Resolution order: explicit parameters, then environment variables, then the shared credentials file and profile, then container or instance metadata.",
+        "Named profiles live in ~/.aws/credentials and ~/.aws/config; select one with AWS_PROFILE.",
+        "`aws sts get-caller-identity` answers 'who am I right now' — the first command to run on any access puzzle.",
+        "AWS_REGION matters: most SDK calls fail or hit the wrong region without it."
+      ],
+      "misconceptions": [
+        "That the CLI and your application see the same credentials. They follow the same chain but different environments resolve differently.",
+        "That a 403 means the policy is wrong. Often it means a different identity than you expected."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "AWS CLI configuration",
+          "url": "https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 7,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "aws-sigv4",
+      "trackID": "aws",
+      "title": "How SigV4 signing works",
+      "tier": 3,
+      "summary": "Every AWS API call is signed. Understanding the four steps makes signature errors debuggable instead of mystifying.",
+      "prerequisites": [
+        "aws-credentials"
+      ],
+      "objectives": [
+        "Walk through the four steps of SigV4 for a concrete request",
+        "Diagnose a signature mismatch"
+      ],
+      "keyIdeas": [
+        "Step 1, canonical request: method, URI-encoded path, sorted query, sorted lowercase headers, signed-header list, and a hex SHA-256 of the payload.",
+        "Step 2, string to sign: the algorithm, the timestamp, the credential scope (date/region/service/aws4_request), and a hash of the canonical request.",
+        "Step 3, signing key: chained HMACs over AWS4+secret, then date, region, service, and aws4_request.",
+        "Step 4: HMAC the string to sign with that key, and put the result in the Authorization header alongside the credential scope and signed headers."
+      ],
+      "misconceptions": [
+        "That the secret key is sent with the request. It never is — only a signature derived from it.",
+        "That a signature error means bad credentials. Usually it is a header that changed after signing, or a clock more than a few minutes off."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Signing AWS API requests",
+          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 12,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-what-it-is",
+      "trackID": "aws",
+      "title": "What Amazon Bedrock is",
+      "tier": 1,
+      "summary": "A managed AWS service that serves foundation models from several providers behind one API and one bill.",
+      "prerequisites": [
+        "aws-account-basics"
+      ],
+      "objectives": [
+        "Describe what Bedrock provides beyond model inference",
+        "Explain who operates it"
+      ],
+      "keyIdeas": [
+        "Bedrock is AWS-operated. AWS runs the service and sets its release schedule and feature set.",
+        "It offers models from multiple providers, including Anthropic, behind AWS-native auth, networking, logging, and billing.",
+        "Beyond inference it adds Guardrails, Knowledge Bases, Agents, and evaluation tooling.",
+        "The appeal is integration: IAM instead of a separate key, VPC endpoints, CloudWatch, and one AWS invoice."
+      ],
+      "misconceptions": [
+        "That Bedrock is Anthropic's product. It is AWS's, and Anthropic is one of the model providers on it.",
+        "That Bedrock always has the newest features. Its feature set trails first-party, sometimes considerably."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "What is Amazon Bedrock",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 7,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-vs-platform-on-aws",
+      "trackID": "aws",
+      "title": "Bedrock versus Claude Platform on AWS",
+      "tier": 2,
+      "summary": "Two different products, both reached through AWS. Confusing them leads to a lot of wasted debugging.",
+      "prerequisites": [
+        "bedrock-what-it-is"
+      ],
+      "objectives": [
+        "State the operator, model ID format, and parity of each",
+        "Choose between them for a stated requirement"
+      ],
+      "keyIdeas": [
+        "Amazon Bedrock is partner-operated: AWS runs it, model IDs carry an anthropic. prefix, and the feature set is a subset.",
+        "Claude Platform on AWS is Anthropic-operated through AWS infrastructure: SigV4 auth, IAM access control, AWS Marketplace billing, and same-day feature parity with first-party.",
+        "Platform on AWS uses bare model IDs and requires both a region and a workspace ID.",
+        "Pick Bedrock for its own ecosystem — Guardrails, Knowledge Bases, Agents. Pick Platform on AWS for AWS-native auth and billing with full API parity."
+      ],
+      "misconceptions": [
+        "That they are two names for the same endpoint. Different hosts, different model ID formats, different feature availability.",
+        "That the Bedrock feature caveats apply to Platform on AWS. They do not — treat it as first-party."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "What is Amazon Bedrock",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-model-access",
+      "trackID": "aws",
+      "title": "Enabling model access",
+      "tier": 2,
+      "summary": "A fresh Bedrock account cannot call any model until you turn each one on, per region.",
+      "prerequisites": [
+        "bedrock-what-it-is"
+      ],
+      "objectives": [
+        "Enable a model and verify it from the CLI",
+        "Diagnose an access error correctly"
+      ],
+      "keyIdeas": [
+        "Model access is requested per model, per region, in the Bedrock console. Some models are instant; others need a use-case form.",
+        "Enabling in us-east-1 does nothing for eu-west-1. This is the most common first-day error.",
+        "`aws bedrock list-foundation-models --region <r>` shows what exists; access status is separate from existence.",
+        "AccessDeniedException has two distinct causes — no IAM permission, or model access not granted — and the message distinguishes them."
+      ],
+      "misconceptions": [
+        "That an IAM policy allowing bedrock:InvokeModel is sufficient. Model access must also be granted.",
+        "That model availability is uniform across regions. It varies substantially and changes over time."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Model access",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 7,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-model-ids",
+      "trackID": "aws",
+      "title": "Bedrock model identifiers",
+      "tier": 2,
+      "summary": "Same models, different names — plus inference profiles, which are a second naming layer people trip over.",
+      "prerequisites": [
+        "bedrock-model-access",
+        "api-model-ids"
+      ],
+      "objectives": [
+        "Translate a first-party model ID to its Bedrock equivalent",
+        "Explain what an inference profile is for"
+      ],
+      "keyIdeas": [
+        "Bedrock IDs prefix the model with anthropic., for example anthropic.claude-opus-5.",
+        "Inference profiles add a geographic prefix (us., eu., apac.) and route across regions for capacity.",
+        "Some models are only callable through an inference profile, not the bare ID — the error message says so.",
+        "The model ID goes in the URL path, not the request body — the opposite of the first-party API."
+      ],
+      "misconceptions": [
+        "That you can construct a Bedrock ID by prefixing any first-party ID. Check the supported-models list.",
+        "That an inference profile is a performance setting. It is a routing and capacity construct that changes the identifier you call."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Supported models and model IDs",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Model access",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-invoke-model",
+      "trackID": "aws",
+      "title": "Calling InvokeModel",
+      "tier": 3,
+      "summary": "The concrete differences between a Bedrock call and a first-party call, all in one request.",
+      "prerequisites": [
+        "bedrock-model-ids",
+        "api-messages-endpoint"
+      ],
+      "objectives": [
+        "Construct a valid Bedrock InvokeModel request by hand",
+        "List every difference from the equivalent first-party request"
+      ],
+      "keyIdeas": [
+        "Endpoint: POST https://bedrock-runtime.<region>.amazonaws.com/model/<modelId>/invoke.",
+        "The body is the Messages API shape with two changes: no model field, and anthropic_version: 'bedrock-2023-05-31' instead.",
+        "Auth is SigV4 with service name 'bedrock' — no x-api-key and no anthropic-version header.",
+        "The response body is the same Messages response shape you already know."
+      ],
+      "misconceptions": [
+        "That you can point the Anthropic SDK at Bedrock with a base URL override. Auth and body shape both differ; use the Bedrock client.",
+        "That the anthropic-version header still applies. On Bedrock the version lives in the body."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "InvokeModel API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 11,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-converse-api",
+      "trackID": "aws",
+      "title": "Converse versus InvokeModel",
+      "tier": 3,
+      "summary": "Bedrock offers a provider-neutral API alongside the passthrough one. The abstraction costs you something.",
+      "prerequisites": [
+        "bedrock-invoke-model"
+      ],
+      "objectives": [
+        "Choose between Converse and InvokeModel for a stated requirement",
+        "Explain what Converse abstracts away"
+      ],
+      "keyIdeas": [
+        "Converse gives one request shape across all Bedrock providers — useful if you genuinely swap between model families.",
+        "InvokeModel is a passthrough: you send the provider's native body and get its native response.",
+        "Provider-specific features tend to land on InvokeModel first, and some are InvokeModel-only.",
+        "If your code is Claude-specific, InvokeModel keeps you closer to the documentation you are already reading."
+      ],
+      "misconceptions": [
+        "That Converse is the newer and therefore better choice. It is a different tradeoff: portability against feature access."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Converse API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "InvokeModel API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-tool-use",
+      "trackID": "aws",
+      "title": "Tool use on Bedrock",
+      "tier": 3,
+      "summary": "Tool use works, with the same block shapes and the same loop.",
+      "prerequisites": [
+        "bedrock-invoke-model",
+        "tool-use-basics"
+      ],
+      "objectives": [
+        "Run a tool-use loop against Bedrock",
+        "Name the tool-related features that differ"
+      ],
+      "keyIdeas": [
+        "Tool definitions, tool_use blocks, and tool_result blocks are identical to first-party through InvokeModel.",
+        "Structured outputs and strict tool use are supported on Bedrock.",
+        "Tool search is supported on Bedrock through InvokeModel, but not through Converse.",
+        "Server-side tools — web search, web fetch, code execution — are not available on Bedrock at all."
+      ],
+      "misconceptions": [
+        "That everything tool-related transfers. Custom tools do; server-side tools do not."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "InvokeModel API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-streaming",
+      "trackID": "aws",
+      "title": "Streaming on Bedrock",
+      "tier": 4,
+      "summary": "Same events, completely different framing. This is where a hand-rolled Bedrock client usually breaks.",
+      "prerequisites": [
+        "bedrock-invoke-model",
+        "api-streaming"
+      ],
+      "objectives": [
+        "Decode a Bedrock response stream",
+        "Explain the difference between SSE and AWS event-stream framing"
+      ],
+      "keyIdeas": [
+        "The endpoint is /model/<id>/invoke-with-response-stream. Streaming is chosen by endpoint, not by a body flag.",
+        "The response uses AWS's binary vnd.amazon.eventstream framing: a prelude with total and header lengths and a CRC, then headers, payload, and a trailing CRC.",
+        "Each frame's payload is JSON containing a base64 'bytes' field; decoding it yields exactly the same event objects the first-party SSE stream sends.",
+        "Frame headers carry :message-type and :event-type, and exceptions arrive as frames rather than HTTP errors."
+      ],
+      "misconceptions": [
+        "That Bedrock streams SSE like the first-party API. It streams binary frames that happen to wrap the same JSON.",
+        "That a mid-stream error becomes a non-200 status. It arrives as an exception frame inside a 200 response."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "InvokeModelWithResponseStream",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModelWithResponseStream.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 13,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-caching-thinking",
+      "trackID": "aws",
+      "title": "Caching and thinking on Bedrock",
+      "tier": 4,
+      "summary": "The expensive features carry over. The details of how you enable them do not, quite.",
+      "prerequisites": [
+        "bedrock-invoke-model",
+        "api-prompt-caching",
+        "api-thinking-adaptive"
+      ],
+      "objectives": [
+        "Enable caching and adaptive thinking on a Bedrock request",
+        "Name the caching caveat specific to older Bedrock integrations"
+      ],
+      "keyIdeas": [
+        "Prompt caching, adaptive thinking, and effort are all supported on Bedrock.",
+        "The legacy Bedrock integration for older models rejects top-level cache_control with a 400 — explicit breakpoints only there.",
+        "Beta features are enabled through an anthropic_beta field in the body rather than an HTTP header.",
+        "Bedrock has its own pricing, so the cost arithmetic for caching differs from first-party even at identical token counts."
+      ],
+      "misconceptions": [
+        "That beta headers work the same way. On Bedrock they move into the body.",
+        "That caching savings are identical to first-party. The mechanism is the same; the rates are not."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "InvokeModel API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-feature-gaps",
+      "trackID": "aws",
+      "title": "What Bedrock does not have",
+      "tier": 3,
+      "summary": "Knowing the gaps up front prevents designing around a feature that is not there.",
+      "prerequisites": [
+        "bedrock-invoke-model",
+        "server-tools"
+      ],
+      "objectives": [
+        "List the first-party features unavailable on Bedrock",
+        "Design around a missing feature"
+      ],
+      "keyIdeas": [
+        "Not on Bedrock: web search, web fetch, code execution, the Files API, the Models API, Message Batches, and Managed Agents.",
+        "Also absent: the MCP connector, server-side fallbacks, fast mode, and inference_geo.",
+        "Available: messages, streaming, tool use, structured outputs, caching, adaptive thinking, token counting, citations, PDF input.",
+        "Check availability before designing. Discovering a gap after the architecture is set is expensive."
+      ],
+      "misconceptions": [
+        "That Bedrock is first-party plus AWS extras. It is a subset of the API plus a different set of AWS-native extras.",
+        "That a missing feature can be enabled with a beta header. Unsupported means unsupported."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "What is Amazon Bedrock",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "InvokeModel API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-guardrails",
+      "trackID": "aws",
+      "title": "Bedrock Guardrails",
+      "tier": 4,
+      "summary": "Policy enforcement outside the model — content filters, topic bans, and PII handling applied to inputs and outputs.",
+      "prerequisites": [
+        "bedrock-invoke-model"
+      ],
+      "objectives": [
+        "Configure a guardrail and describe where it intercepts",
+        "Explain why guardrails are not a substitute for prompt-level care"
+      ],
+      "keyIdeas": [
+        "Guardrails apply content filters, denied topics, word filters, PII detection and redaction, and contextual grounding checks.",
+        "They evaluate both the input and the model's output, independently of the model.",
+        "They are versioned resources referenced by ID at invocation time, so policy changes without a code deploy.",
+        "Guardrail evaluation is billed separately from inference."
+      ],
+      "misconceptions": [
+        "That a guardrail makes prompt injection impossible. It filters content categories; it does not establish trust boundaries.",
+        "That guardrails are free. They are a separately priced evaluation on every request."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Bedrock Guardrails",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 10,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-knowledge-bases",
+      "trackID": "aws",
+      "title": "Knowledge Bases: managed RAG",
+      "tier": 4,
+      "summary": "AWS runs the ingestion, chunking, embedding, and vector store. You supply documents and a query.",
+      "prerequisites": [
+        "bedrock-invoke-model"
+      ],
+      "objectives": [
+        "Describe the ingestion and retrieval pipeline",
+        "Decide when managed RAG beats building your own"
+      ],
+      "keyIdeas": [
+        "A knowledge base ingests from a source such as S3, chunks and embeds it, and stores vectors in a supported store.",
+        "Two APIs: Retrieve returns passages, RetrieveAndGenerate returns a grounded answer with citations.",
+        "Chunking strategy and embedding model are configuration, and they matter more to answer quality than the generation prompt does.",
+        "Managed means less control: custom chunking, hybrid ranking, and bespoke rerankers are constrained by what the service exposes."
+      ],
+      "misconceptions": [
+        "That managed RAG removes the need to understand retrieval. Chunking and retrieval quality still decide the outcome.",
+        "That more retrieved passages give better answers. Precision matters more than recall past a small number."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Knowledge bases",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 11,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-agents",
+      "trackID": "aws",
+      "title": "Bedrock Agents",
+      "tier": 5,
+      "summary": "AWS's own agent orchestration: action groups backed by Lambda, with knowledge bases attached.",
+      "prerequisites": [
+        "bedrock-knowledge-bases",
+        "agent-vs-workflow"
+      ],
+      "objectives": [
+        "Describe the Bedrock Agents execution model",
+        "Compare it against building the loop yourself"
+      ],
+      "keyIdeas": [
+        "An agent has instructions, action groups (tool definitions backed by Lambda functions), and optionally knowledge bases.",
+        "AWS runs the orchestration loop; your Lambdas execute the actions.",
+        "Agents are versioned with aliases, so you can promote a version without changing callers.",
+        "It buys AWS-native integration and IAM-scoped execution; it costs you control over the loop and portability off AWS."
+      ],
+      "misconceptions": [
+        "That Bedrock Agents and Anthropic's Managed Agents are the same thing. Different services, different execution models, different providers.",
+        "That the managed loop removes the need to understand agent design. The four criteria still decide whether an agent is right at all."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Bedrock Agents",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 11,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-provisioned-throughput",
+      "trackID": "aws",
+      "title": "Quotas, throttling, and provisioned throughput",
+      "tier": 4,
+      "summary": "On-demand capacity is shared and throttles. Planning for that is a design decision, not an afterthought.",
+      "prerequisites": [
+        "bedrock-model-access"
+      ],
+      "objectives": [
+        "Read a throttling error and choose a mitigation",
+        "Decide whether provisioned throughput is justified"
+      ],
+      "keyIdeas": [
+        "On-demand is pay-per-token against shared capacity, with per-model, per-region quotas on requests and tokens per minute.",
+        "ThrottlingException is normal under load. Handle it with exponential backoff and jitter, not by retrying immediately.",
+        "Provisioned Throughput buys dedicated capacity at an hourly commitment — worth it only at sustained high volume.",
+        "Cross-region inference profiles spread load across regions and are usually the cheaper answer to capacity pressure."
+      ],
+      "misconceptions": [
+        "That throttling means you did something wrong. It means the shared pool is busy.",
+        "That provisioned throughput is the default fix for throttling. It is a commitment; try inference profiles and backoff first."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Provisioned Throughput",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Bedrock quotas",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 9,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-observability",
+      "trackID": "aws",
+      "title": "Logging and observability",
+      "tier": 4,
+      "summary": "You cannot debug or cost-attribute what you did not record, and Bedrock does not record it by default.",
+      "prerequisites": [
+        "bedrock-invoke-model"
+      ],
+      "objectives": [
+        "Enable invocation logging and choose what to capture",
+        "Identify the metrics worth alarming on"
+      ],
+      "keyIdeas": [
+        "Model invocation logging is opt-in and writes request and response data to CloudWatch Logs or S3.",
+        "CloudWatch metrics cover invocation counts, latency, token counts, and throttles.",
+        "CloudTrail records control-plane calls — who changed model access or guardrails — separately from inference.",
+        "Logged prompts and completions may contain sensitive data. Decide retention and access before switching logging on."
+      ],
+      "misconceptions": [
+        "That logging is on by default. It is not, and the data is unrecoverable after the fact.",
+        "That capturing everything is the safe default. Prompt logs are a data-protection surface."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Model invocation logging",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 9,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-cost",
+      "trackID": "aws",
+      "title": "Bedrock cost model",
+      "tier": 3,
+      "summary": "Partner-operated means separate pricing, and several AWS-only line items.",
+      "prerequisites": [
+        "bedrock-invoke-model",
+        "api-cost-model"
+      ],
+      "objectives": [
+        "Estimate the cost of a Bedrock workload",
+        "Name the cost lines that do not exist first-party"
+      ],
+      "keyIdeas": [
+        "Bedrock has its own published per-model pricing, distinct from Anthropic's first-party rates.",
+        "Extra line items: Guardrails evaluation, knowledge base storage and retrieval, provisioned throughput commitments, and data transfer.",
+        "Caching works and still saves, but compute the savings at Bedrock rates rather than reusing first-party arithmetic.",
+        "Cost allocation tags and AWS Budgets are how you attribute and cap spend."
+      ],
+      "misconceptions": [
+        "That Bedrock is cheaper because it is bundled with AWS. It is priced separately and may be higher or lower.",
+        "That the token counts differ. The tokens are the same; the rates are not."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Bedrock pricing",
+          "url": "https://aws.amazon.com/bedrock/pricing/",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-vpc-security",
+      "trackID": "aws",
+      "title": "Network isolation and data flow",
+      "tier": 5,
+      "summary": "Where the bytes go, and how to keep them off the public internet.",
+      "prerequisites": [
+        "bedrock-invoke-model",
+        "aws-iam-fundamentals"
+      ],
+      "objectives": [
+        "Design a network path that keeps Bedrock traffic inside AWS",
+        "Explain what a VPC endpoint policy adds over IAM"
+      ],
+      "keyIdeas": [
+        "An interface VPC endpoint (PrivateLink) lets resources in a private subnet reach Bedrock without a route to the internet.",
+        "Endpoint policies restrict what can be called through that endpoint — defence in depth alongside identity policies.",
+        "Data is encrypted in transit; customer-managed KMS keys cover the stateful features such as knowledge bases.",
+        "Understand the data-handling terms for the model provider you use before sending regulated data."
+      ],
+      "misconceptions": [
+        "That a VPC endpoint alone secures access. It controls the network path; IAM still controls who may call.",
+        "That private networking changes what the model provider may do with the data. That is a contractual question, not a network one."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Bedrock and VPC endpoints",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/usingVPC.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Bedrock security",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/security.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 11,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "bedrock-production-arch",
+      "trackID": "aws",
+      "title": "Production architecture on Bedrock",
+      "tier": 5,
+      "summary": "Putting it together: a real service that streams, retries, observes, and does not leak credentials.",
+      "prerequisites": [
+        "bedrock-streaming",
+        "bedrock-observability",
+        "aws-iam-fundamentals"
+      ],
+      "objectives": [
+        "Design an end-to-end Bedrock architecture for a streaming user-facing feature",
+        "Place the trust boundary correctly"
+      ],
+      "keyIdeas": [
+        "Clients never hold AWS credentials. They call your endpoint; your compute holds an execution role with a narrowly scoped Bedrock policy.",
+        "Streaming to a browser or app usually means API Gateway with WebSockets, Lambda response streaming, or a container behind a load balancer — plain synchronous Lambda behind REST fits long generations poorly.",
+        "Handle throttling with backoff and jitter; consider a queue for anything that need not be interactive.",
+        "Instrument from the start: token counts, latency percentiles, throttle rate, and cost per request, tagged per feature."
+      ],
+      "misconceptions": [
+        "That Lambda is always the right compute. Long streaming generations bump into timeouts and payload limits.",
+        "That the execution role can be broad because it is server-side. Least privilege limits the blast radius of an injection."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "InvokeModel API",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Model invocation logging",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html",
+          "kind": "awsBedrockDocs"
+        },
+        {
+          "title": "Bedrock and VPC endpoints",
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/usingVPC.html",
+          "kind": "awsBedrockDocs"
+        }
+      ],
+      "estimatedMinutes": 14,
+      "requiresAWSAccount": true
+    },
+    {
+      "id": "prod-key-management",
+      "trackID": "production",
+      "title": "Where credentials live",
+      "tier": 2,
+      "summary": "The first architectural decision in any AI product, and the one most often got wrong.",
+      "prerequisites": [
+        "api-auth"
+      ],
+      "objectives": [
+        "Place the trust boundary correctly for a client application",
+        "Explain what a thin backend proxy buys beyond hiding the key"
+      ],
+      "keyIdeas": [
+        "A client application must not hold a provider credential. Any key in a binary is extractable.",
+        "The standard shape is a thin backend that holds the key and exposes only the operations your product needs.",
+        "That proxy is also where per-user rate limiting, spend caps, abuse detection, and audit logging live — none of which a raw key allows.",
+        "This app deliberately breaks the rule: it is a single-user personal tool with keys in the Keychain. That tradeoff does not survive contact with a real user base."
+      ],
+      "misconceptions": [
+        "That obfuscating or encrypting an embedded key helps. The app must decrypt it, so an attacker can too.",
+        "That the proxy is only about secrecy. Its real value is control: limits, quotas, and an audit trail."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "prod-latency",
+      "trackID": "production",
+      "title": "Latency you can feel",
+      "tier": 3,
+      "summary": "Perceived latency is a design problem as much as an engineering one.",
+      "prerequisites": [
+        "api-streaming",
+        "api-effort"
+      ],
+      "objectives": [
+        "Reduce perceived latency for a described feature",
+        "Identify which levers change real versus perceived latency"
+      ],
+      "keyIdeas": [
+        "Stream. Time-to-first-token is what users experience; total duration matters far less than it feels like it should.",
+        "Real levers: a smaller model, lower effort, shorter outputs, fewer chained calls, and prompt caching on the prefix.",
+        "Perceived levers: streaming, optimistic UI, showing reasoning summaries, and doing work before the user asks.",
+        "Long agentic runs need progress feedback, or a correct result arriving in four minutes reads as a hang."
+      ],
+      "misconceptions": [
+        "That a faster model is the only lever. Output length and chain depth usually dominate.",
+        "That caching mainly saves money. On long prefixes it is also a large latency win."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Streaming messages",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/streaming",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "prod-retries",
+      "trackID": "production",
+      "title": "Retries and idempotency",
+      "tier": 3,
+      "summary": "A retry policy that retries the wrong things turns a blip into an outage and a bill.",
+      "prerequisites": [
+        "api-errors"
+      ],
+      "objectives": [
+        "Write a production retry policy",
+        "Explain why jitter matters"
+      ],
+      "keyIdeas": [
+        "Retry 429, 5xx, and connection errors. Never retry 400, 401, 403, or 404 — they will fail identically forever.",
+        "Exponential backoff with jitter. Without jitter, every client retries in lockstep and you rebuild the thundering herd.",
+        "Respect retry-after when present rather than inventing your own interval.",
+        "A timed-out request may have completed and been billed. Cap total attempts and total wall-clock, not just attempt count."
+      ],
+      "misconceptions": [
+        "That more retries mean more reliability. Past a small number they amplify an incident.",
+        "That a client-side timeout cancels server-side work. It does not, and you may pay for the result you discarded."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Errors",
+          "url": "https://docs.claude.com/en/api/errors",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "prod-observability",
+      "trackID": "production",
+      "title": "What to record",
+      "tier": 3,
+      "summary": "You cannot debug, cost-attribute, or improve a system whose calls you did not record.",
+      "prerequisites": [
+        "api-cost-model"
+      ],
+      "objectives": [
+        "Design the logging schema for an LLM feature",
+        "Decide what must not be logged"
+      ],
+      "keyIdeas": [
+        "Per request record: model, token counts from usage, cache hit fields, latency, stop_reason, and a correlation ID.",
+        "Aggregate: cost per feature, p50/p95/p99 latency, error rate by type, refusal rate, and cache hit rate.",
+        "Sample full prompts and responses rather than logging everything — enough to debug, not enough to become a breach.",
+        "Prompt and completion logs are a data-protection surface. Decide retention, access, and redaction before you enable them."
+      ],
+      "misconceptions": [
+        "That logging the response text is enough. Without usage and stop_reason you cannot explain cost or truncation.",
+        "That a falling cache hit rate will announce itself. It is silent unless you chart it."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 8
+    },
+    {
+      "id": "prod-rag-basics",
+      "trackID": "production",
+      "title": "Retrieval augmentation",
+      "tier": 3,
+      "summary": "Getting the right context in front of the model, which is mostly a retrieval problem rather than a prompting one.",
+      "prerequisites": [
+        "context-engineering"
+      ],
+      "objectives": [
+        "Design a retrieval pipeline and identify its weakest stage",
+        "Explain why answer quality is usually bounded by retrieval"
+      ],
+      "keyIdeas": [
+        "The pipeline is chunk, embed, store, retrieve, rerank, assemble. Generation is the last and usually least interesting stage.",
+        "Chunking strategy dominates quality. Chunks that split a fact from its context cannot be recovered by any prompt.",
+        "Hybrid retrieval — keyword plus vector — beats pure vector for names, identifiers, and exact terms.",
+        "Evaluate retrieval separately from generation, or you cannot tell which half is failing."
+      ],
+      "misconceptions": [
+        "That a large context window makes retrieval unnecessary. It changes economics, not relevance — irrelevant context still degrades answers.",
+        "That better prompting fixes bad retrieval. If the fact is not in the context, no prompt recovers it."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Context windows",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/context-windows",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Anthropic cookbook",
+          "url": "https://github.com/anthropics/anthropic-cookbook",
+          "kind": "cookbook"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "prod-multimodal",
+      "trackID": "production",
+      "title": "Documents and images in production",
+      "tier": 3,
+      "summary": "Real inputs are PDFs and screenshots, and they bring their own failure modes.",
+      "prerequisites": [
+        "api-files"
+      ],
+      "objectives": [
+        "Build a document pipeline with verifiable answers",
+        "Handle the size and page limits"
+      ],
+      "keyIdeas": [
+        "PDFs and images go in as content blocks; the block type must match the MIME type.",
+        "Limits are real: 32 MB per request and 600 pages (100 on 200K-context models). Split larger documents deliberately.",
+        "Citations turn 'the model said so' into a verifiable span with a page or character offset — worth enabling wherever a user might dispute an answer.",
+        "Scanned documents without a text layer depend entirely on the model's vision; quality varies with scan quality."
+      ],
+      "misconceptions": [
+        "That a PDF is just text. Layout, tables, and multi-column flow all affect extraction.",
+        "That citations are optional polish. For anything consequential they are the difference between an answer and a claim."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Files API",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/files",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Citations",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/citations",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prod-safety",
+      "trackID": "production",
+      "title": "Refusals and failure UX",
+      "tier": 4,
+      "summary": "Models decline sometimes. What your product does next is a design decision you should make on purpose.",
+      "prerequisites": [
+        "api-stop-reason"
+      ],
+      "objectives": [
+        "Handle a refusal gracefully in a user-facing flow",
+        "Distinguish a refusal from an error and from a bad answer"
+      ],
+      "keyIdeas": [
+        "A refusal is HTTP 200 with stop_reason 'refusal' and a populated stop_details. Error handling will not catch it.",
+        "Decide the product behaviour: rephrase, route to a human, degrade, or explain. Silence is the worst option.",
+        "On some models a server-side fallbacks parameter re-runs the request on another model within the same call. It is not available on Bedrock.",
+        "Log refusal category and rate — a spike usually means a prompt change, not a change in users."
+      ],
+      "misconceptions": [
+        "That refusals are rare enough to ignore. At volume they are a routine code path.",
+        "That a refusal means the user did something wrong. Often it is your prompt or retrieved context triggering it."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prod-human-in-loop",
+      "trackID": "production",
+      "title": "Approval gates and blast radius",
+      "tier": 5,
+      "summary": "Autonomy is a dial, and where you set it should follow from reversibility.",
+      "prerequisites": [
+        "agent-tool-surface"
+      ],
+      "objectives": [
+        "Classify a set of actions by reversibility and assign gates",
+        "Design an approval flow that people will not reflexively click through"
+      ],
+      "keyIdeas": [
+        "Classify actions by reversibility and blast radius. Reversible and local: automate. Irreversible or outward-facing: gate.",
+        "Outward-facing actions — sending mail, posting, paying, deleting — deserve a gate regardless of model confidence.",
+        "An approval that shows no meaningful detail trains people to approve reflexively, which is worse than no gate.",
+        "Prefer reversibility over approval where you can build it: dry-run, staging, soft delete, and undo scale better than human attention."
+      ],
+      "misconceptions": [
+        "That a confident model reduces the need for gates. Confidence is uncorrelated with the cost of the mistake.",
+        "That more approvals mean more safety. Approval fatigue converts a control into a formality."
+      ],
+      "practiceKinds": [
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prod-cost-control",
+      "trackID": "production",
+      "title": "Controlling spend",
+      "tier": 4,
+      "summary": "Free wins first, then the levers that trade quality — in that order, always.",
+      "prerequisites": [
+        "api-cost-model",
+        "api-prompt-caching",
+        "api-batches"
+      ],
+      "objectives": [
+        "Produce a ranked cost-reduction plan for a described workload",
+        "Explain why the ordering of levers matters"
+      ],
+      "keyIdeas": [
+        "Free wins first: prompt caching, trimming dead input tokens, shorter outputs, removing redundant calls, and batch where latency allows.",
+        "Then quality-trading levers: lower effort, a smaller model, tighter output caps — each validated against an eval.",
+        "Measure before optimising. Most bills are dominated by one route, and intuition about which is usually wrong.",
+        "Guard with limits: per-user quotas, per-feature budgets, and alerts on spend rate rather than monthly totals."
+      ],
+      "misconceptions": [
+        "That switching to a cheaper model is the first move. It is a quality trade, and caching often beats it outright.",
+        "That a monthly budget alert is sufficient. By the time a monthly total fires, the money is spent."
+      ],
+      "practiceKinds": [
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Prompt caching",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/prompt-caching",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Message Batches",
+          "url": "https://docs.claude.com/en/docs/build-with-claude/batch-processing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
+    },
+    {
+      "id": "prod-versioning",
+      "trackID": "production",
+      "title": "Versioning prompts and models",
+      "tier": 4,
+      "summary": "Prompts are production code. Treat them like it.",
+      "prerequisites": [
+        "eval-regression"
+      ],
+      "objectives": [
+        "Set up prompt versioning with a rollback path",
+        "Explain why prompt changes need release discipline"
+      ],
+      "keyIdeas": [
+        "Keep prompts in version control, reviewed, with the eval run in CI on every change.",
+        "Pin the model explicitly. An implicit or floating model is an unversioned dependency in your hottest path.",
+        "Log which prompt version and model produced each response, or you cannot investigate a bad output after a deploy.",
+        "Roll out prompt changes gradually where the surface allows it — the failure modes are not always visible in aggregate."
+      ],
+      "misconceptions": [
+        "That a prompt change is low risk because it is only text. It changes behaviour as thoroughly as a code change.",
+        "That you can reconstruct which prompt produced a past response from git history alone. Log the version with the response."
+      ],
+      "practiceKinds": [
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Messages API reference",
+          "url": "https://docs.claude.com/en/api/messages",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "prod-prompt-injection-defense",
+      "trackID": "production",
+      "title": "Defending an agent with tools",
+      "tier": 5,
+      "summary": "Injection stops being a curiosity and becomes an incident the moment the model can act.",
+      "prerequisites": [
+        "prompt-injection-basics",
+        "agent-tool-surface"
+      ],
+      "objectives": [
+        "Design layered defenses for an agent that reads untrusted content and has write tools",
+        "Explain why no single layer is sufficient"
+      ],
+      "keyIdeas": [
+        "Map every path untrusted text takes into the context: user input, fetched pages, documents, tool results, other agents.",
+        "Least privilege on tools is the strongest layer. An agent that cannot delete cannot be talked into deleting.",
+        "Add approval gates on consequential actions, validate tool arguments in code, and constrain outputs to schemas.",
+        "Monitor for the signature: sudden unusual tool sequences, or actions unrelated to the stated task."
+      ],
+      "misconceptions": [
+        "That instructing the model to ignore embedded instructions is a defense. It raises the bar slightly and is not a boundary.",
+        "That input filtering solves it. Injection can be encoded, indirect, or arrive through a tool result you did not filter."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Tool use overview",
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 12
+    },
+    {
+      "id": "prod-capstone",
+      "trackID": "production",
+      "title": "Capstone: ship something real",
+      "tier": 5,
+      "summary": "Design, build, evaluate, and cost an agentic feature end to end, on both providers.",
+      "prerequisites": [
+        "prod-cost-control",
+        "prod-prompt-injection-defense",
+        "bedrock-production-arch",
+        "eval-hillclimb"
+      ],
+      "objectives": [
+        "Ship a working agentic feature with an eval, a cost model, and a threat model",
+        "Defend every significant design decision"
+      ],
+      "keyIdeas": [
+        "Start from the four agent criteria and justify the tier you chose — a workflow is a legitimate answer.",
+        "Build the eval before tuning. You cannot claim an improvement without a baseline.",
+        "Instrument cost and latency from the first request, not after the bill surprises you.",
+        "Write down the threat model: what untrusted input reaches the context, and what the worst action the system can take is."
+      ],
+      "misconceptions": [
+        "That the capstone is about building the most sophisticated thing you can. It is about defending your choices with measurements."
+      ],
+      "practiceKinds": [
+        "code",
+        "investigation",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Building effective agents",
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Defining success criteria",
+          "url": "https://docs.claude.com/en/docs/test-and-evaluate/define-success",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Pricing",
+          "url": "https://docs.claude.com/en/docs/about-claude/pricing",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 20
+    }
+  ]
+}

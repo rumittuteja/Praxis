@@ -1,0 +1,22 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+Praxis.xcodeproj/project.xcworkspace/
+Praxis.xcodeproj/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+
+# macOS
+.DS_Store
+
+# Secrets never belong in the repo. The app stores credentials in the
+# Keychain; nothing here should ever contain a key.
+*.p12
+*.mobileprovision
+.env
