@@ -1,166 +1,632 @@
 # Praxis
 
-A personal AI-engineering tutor for iOS. It teaches building with Claude and
-Amazon Bedrock through daily sessions: spaced-repetition review, one new
-concept, an interleaved quiz, and a hands-on task that Claude grades against a
-rubric.
+**A personal AI-engineering tutor for iOS.** It teaches you to build with Claude
+and Amazon Bedrock — not by handing you documentation, but by running a short
+structured lesson every day, testing whether it stuck, and giving you real work
+to do that gets graded against a rubric.
 
-Multiple local profiles, each with its own progress graph. Both the Anthropic
-API and Amazon Bedrock are implemented, switchable in Settings.
+---
 
-> **This has never been compiled.** It was written in a Linux container with no
-> macOS, no Xcode, and no simulator. The architecture, the curriculum, and the
-> algorithms are the work; expect to fix some compile errors on first build.
-> The unit tests are the fastest way to find them — see *First build* below.
+## Table of contents
+
+- [What this is, and why](#what-this-is-and-why)
+- [Project status](#project-status)
+- [Requirements](#requirements)
+- [Part 1 — Getting it running](#part-1--getting-it-running)
+- [Part 2 — First-time setup inside the app](#part-2--first-time-setup-inside-the-app)
+- [Part 3 — Using it day to day](#part-3--using-it-day-to-day)
+- [Part 4 — The other screens](#part-4--the-other-screens)
+- [The curriculum](#the-curriculum)
+- [How the learning design works](#how-the-learning-design-works)
+- [Where content comes from](#where-content-comes-from)
+- [What it costs to run](#what-it-costs-to-run)
+- [Multiple profiles](#multiple-profiles)
+- [Privacy and data](#privacy-and-data)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Known gaps](#known-gaps)
+
+---
+
+## What this is, and why
+
+The material for learning AI engineering exists and is mostly free. Anthropic's
+documentation is good, the cookbook is full of working examples, AWS documents
+Bedrock exhaustively. The problem is not access. The problem is that reading
+documentation produces a strong feeling of understanding and very little actual
+retention, and there is no moment where anyone tells you that the thing you
+believe about prompt caching is wrong.
+
+Praxis is built around that gap. It does four things that reading does not:
+
+**It schedules.** Concepts come back on a spaced-repetition schedule tuned to
+how well you actually did on them, so material resurfaces just as it is about
+to fade rather than when you happen to think of it.
+
+**It tests before it teaches.** Every session opens with recall on things you
+have already seen, before any new material. Retrieving something from memory is
+what strengthens it; re-reading it mostly strengthens your confidence.
+
+**It makes you do the work.** Each session ends with a hands-on task — write
+this prompt, build this thing in Claude Code, run this against Bedrock and
+report what happened — which you submit and which Claude grades against a
+rubric shown to you before you start.
+
+**It tells you when you are wrong while feeling right.** You state your
+confidence before each answer is revealed. The gap between how sure you were
+and how right you were is tracked per concept and surfaced. Being confidently
+wrong is the failure mode that costs the most and the one you cannot detect on
+your own.
+
+The curriculum runs from prompting fundamentals through the Claude API, tool use
+and agents, Claude Code, evaluation, and a full ground-up track on AWS and
+Amazon Bedrock, ending in production architecture. It assumes you already know
+what tokens and context windows are. It assumes nothing whatsoever about AWS.
+
+---
+
+## Project status
+
+**This code has never been compiled.** It was written in a Linux container with
+no macOS, no Xcode, and no simulator. The architecture, the curriculum, the
+algorithms and the tests are all real work, but the first build will surface
+compile errors that could not be caught without a compiler.
+
+Several classes of error were found and fixed by inspection — a default value on
+an enum case associated value (which Swift forbids), sorting SwiftData by a
+`UUID` (which is not `Comparable`), a shared mutable `DateFormatter`, and
+absolute index arithmetic on `Data` that is unsafe after slicing. Inspection has
+limits, so expect more.
+
+The 109 unit tests are the fastest path to a clean build. They cover the pure
+logic with no network and no UI, so they compile and fail quickly.
 
 ---
 
 ## Requirements
 
-- macOS with **Xcode 16 or later** (the project uses synchronized file groups,
-  which Xcode 15 cannot read).
-- iOS 17+ target. Runs on the simulator; a device needs a signing team.
-- An **Anthropic API key**, or **AWS credentials** with Bedrock access, or both.
-  Warm-up reviews work with neither.
+| | |
+|---|---|
+| **Xcode** | 16 or later — required. The project uses synchronized file groups, which Xcode 15 cannot read. |
+| **iOS** | 17.0 or later. Builds for iPhone and iPad. |
+| **Credentials** | An Anthropic API key, or AWS credentials with Bedrock access, or both. Warm-up reviews work with neither. |
+| **Apple Developer account** | Only if you want to run on a physical device. The simulator needs nothing. |
 
-## First build
+---
+
+## Part 1 — Getting it running
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/rumittuteja/Praxis.git
+cd Praxis
+```
+
+### 2. Open the project
 
 ```bash
 open Praxis.xcodeproj
 ```
 
-Set your signing team on the `Praxis` target if you're running on a device,
-then ⌘R.
-
-**Run the tests first** (⌘U). They cover the pure logic — spaced repetition,
-SigV4, the Bedrock event-stream decoder, wire encoding, the planner, the
-curriculum graph — with no network and no UI, so they will surface most
-mistakes faster than launching the app.
-
-If the project file itself is ever damaged, regenerate it:
+If Xcode opens to an apparently empty file list, you are on Xcode 15 or earlier.
+Synchronized file groups are an Xcode 16 feature and older versions cannot read
+them. Upgrade, or regenerate the project file with XcodeGen:
 
 ```bash
 brew install xcodegen && xcodegen generate
 ```
 
-## Setup
+### 3. Run the tests first
 
-Everything is in **Settings** inside the app. Credentials go to the Keychain
-(`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` — device-only, excluded
-from iCloud Keychain and from backups) and are never written anywhere else.
+Press **⌘U**.
 
-**Anthropic** — paste an API key from the Console. That's the whole setup.
+Do this before trying to run the app. The test suite exercises the spaced
+repetition algorithm, AWS SigV4 signing (against AWS's own published reference
+vectors), the Bedrock binary event-stream decoder, the Messages API wire
+encoding, the session planner, and the integrity of the curriculum graph. None
+of it touches the network or the UI, so it compiles fast and fails informatively.
 
-**Bedrock** — paste an access key ID and secret (plus a session token if you're
-using temporary credentials, which you should be), pick a region, and pick a
-model. Two things to check when a call fails:
+If the build fails, the first error is almost always the only real one — Swift
+generates a lot of cascading noise after an initial failure. Fix from the top.
 
-1. The IAM principal needs `bedrock:InvokeModel` and
-   `bedrock:InvokeModelWithResponseStream`.
-2. The model must be **enabled for that specific region** in the Bedrock
-   console. Enabling it in `us-east-1` does nothing for `eu-west-1`. This is the
-   single most common first-day error, and it's also lesson
-   `bedrock-model-access` in the curriculum.
+### 4. Set a signing team, if using a device
 
-**GitHub token** — optional. It only raises the anonymous 60-requests-per-hour
-limit during documentation sync.
+Select the **Praxis** target → **Signing & Capabilities** → choose your team.
+Skip this entirely if you are running in the simulator.
+
+### 5. Run
+
+Press **⌘R**. The app opens on the profile picker, because no profile exists yet.
 
 ---
 
-## How a session works
+## Part 2 — First-time setup inside the app
 
-Each day the planner builds a session from your progress graph:
+### Step 1 — Create your profile
 
-| Step | What it does | Cost |
-|---|---|---|
-| **Warm-up** | Retrieval practice on concepts that are due. Recall, then reveal, then self-rate. | Free — no model call |
-| **Lesson** | One new concept. Worked example first, then explanation, then takeaways. | 1 call (Opus 5) |
-| **Quiz** | 4–8 items interleaving the new concept with older ones. Confidence stated before each reveal. | 1 call (Haiku) + 1 if you wrote free text |
-| **Task** | Hands-on work you do elsewhere and paste back, graded against a rubric shown up front. | 2 calls (Opus 5) |
-| **Reflection** | Explain it in your own words. Stored, never graded. | Free |
+Tap **Add a profile** and fill in four things:
 
-Reviews are always scheduled before new material, so a smaller daily goal means
-fewer new concepts rather than weaker retention.
+**Name.** Used in greetings and to label the profile.
 
-### The learning design
+**Avatar.** Pick an emoji. Cosmetic, but it makes switching between profiles
+legible at a glance.
 
-Not decoration — each of these is load-bearing:
+**Daily goal.** Between 5 and 90 minutes, defaulting to 20. This is a real
+budget, not a suggestion — the session planner fits work into it. Reviews are
+always scheduled first, so a smaller goal means fewer new concepts rather than
+weaker retention. Twenty minutes is a sustainable default; if you find yourself
+skipping days, lower it rather than pushing through.
 
-- **Spaced repetition (SM-2)** with two departures from the textbook algorithm.
-  Progression gates on a separate *mastery* estimate rather than on repetition
-  count, because passing four easy recalls is not understanding. And being
-  wrong while *certain* schedules the card for tomorrow, because you have no
-  internal signal telling you to review it.
-- **Retrieval practice first.** Recall before re-reading, every session.
-- **Interleaving.** Quizzes mix concepts so you have to notice which idea
-  applies, rather than pattern-matching to whatever you just read.
-- **Worked examples, then faded practice.** Task scope grows with mastery: the
-  same concept yields "follow these five steps" at low mastery and "here's a
-  goal and a hard constraint" at high mastery.
-- **Confidence calibration.** You state confidence before each reveal. The gap
-  between confidence and correctness is tracked per concept and surfaced on the
-  Progress screen. Confident-and-wrong is the pattern that costs you most and
-  the one you cannot detect alone.
-- **Elaborative interrogation.** Lessons name a specific misconception and
-  refute it, rather than only presenting the correct version.
+**What you already know.** This one matters more than it looks. The text you
+write here is injected into every generation prompt, so it directly controls the
+altitude lessons are pitched at. Be specific at both ends — what you are fluent
+in, and what you have genuinely never touched.
+
+> A useful example: *"Ten years backend engineering, mostly Go and Python. Use
+> Claude Code daily and I'm comfortable with tokens, context windows and basic
+> prompting. Never written an agent loop. Complete beginner on AWS — no account,
+> don't know what IAM is."*
+
+That gets you lessons that skip the basics you have and build AWS from zero,
+which is exactly the split most material gets wrong.
+
+### Step 2 — Add credentials
+
+Go to the **Settings** tab. Everything below is stored in the iOS Keychain with
+`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, which means device-only,
+excluded from iCloud Keychain and excluded from device backups. Nothing is
+written anywhere else, and the app never displays a saved secret back to you.
+
+You need at least one provider. Adding both lets you compare them, which is
+itself part of the syllabus.
+
+#### Option A — Anthropic API (simplest)
+
+1. Get an API key from the Anthropic Console.
+2. Paste it into the **Anthropic API** section.
+3. Tap **Save key**.
+4. Optionally change the model. Opus 5 is the default and the right choice for
+   lessons and grading.
+
+That is the entire setup.
+
+#### Option B — Amazon Bedrock (more setup, more to learn)
+
+Bedrock needs three things lined up, and people usually miss the third.
+
+1. **Create an IAM identity with Bedrock permissions.** The principal needs
+   `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`.
+
+2. **Enable model access for your region.** In the AWS console, go to Bedrock →
+   Model access, and request access to the Anthropic models you want. This is
+   per-model *and* per-region.
+
+3. **Match the region in the app to the region you enabled.** Enabling a model
+   in `us-east-1` does nothing for `eu-west-1`. This is the single most common
+   first-day Bedrock error, and it is also lesson `bedrock-model-access` in the
+   curriculum — you will hit it before you are taught it.
+
+Then in Settings → **Amazon Bedrock**:
+
+1. Paste your access key ID and secret access key.
+2. Paste a session token as well, if you are using temporary credentials.
+3. Pick the region you enabled models in.
+4. Pick a model. Note the `anthropic.` prefix — Bedrock model IDs are not the
+   same strings as first-party ones.
+5. Tap **Save credentials**.
+
+> **On credential choice:** prefer temporary credentials with a session token
+> over a long-lived access key. A long-lived key is a password that never
+> expires, and this app stores it on a phone. This tradeoff is lesson
+> `aws-credentials`, and the app is deliberately an example of the compromise
+> rather than the ideal.
+
+#### Optional — GitHub token
+
+In the **Source material** section. It only raises GitHub's anonymous rate limit
+of 60 requests per hour during documentation sync. The app works fine without
+one; you may just see a few sync failures on the repository-backed sources.
+
+### Step 3 — Sync the documentation
+
+Still in Settings, under **Source material**, tap **Sync documentation now**.
+
+This fetches 49 source URLs — Anthropic's docs, the `anthropics/courses` and
+`anthropic-cookbook` repositories, and AWS's Bedrock guide — into a local corpus,
+extracting readable text from HTML pages, Markdown files and Jupyter notebooks.
+Lessons are then grounded in retrieved passages from that corpus rather than in
+the model's recollection of documentation.
+
+The first sync is sequential and takes a minute or two. Later syncs are mostly
+cheap 304 Not Modified responses, because the app stores ETag and Last-Modified
+validators and revalidates rather than refetching.
+
+Some sources will fail. Documentation sites restructure, and the URLs were
+written against their structure at authoring time. Failures are listed
+per-source in the sync report. A concept whose sources all failed still
+generates a lesson — the tutor is instructed to say plainly what it is unsure of
+rather than bluff.
+
+You can skip this step. Lessons will be less well grounded, and citations will
+be empty.
+
+### Step 4 — Start
+
+Go to the **Today** tab. Your first session is waiting.
+
+---
+
+## Part 3 — Using it day to day
+
+Open the app once a day. The **Today** screen shows a greeting, your streak, an
+estimate of how long the session will take, and a progress bar across the steps.
+Below that is a list of steps, with the next one marked. Tap a step to enter it.
+
+A day's session is built fresh each morning from your progress graph and stays
+fixed for the day, so it will not reshuffle underneath you. Not every step
+appears every day: a day with nothing due has no warm-up, and a day where your
+review backlog is large may have no new concept at all.
+
+### Step 1 — Warm-up (free, no model call)
+
+You are shown a concept you have studied before and asked to recall it —
+"Without looking: what is prompt caching, and when does it matter?" — with no
+answer visible.
+
+**Actually try to answer.** Out loud, or in your head, or on paper. The effort of
+retrieval is the entire mechanism; skipping straight to the reveal converts a
+high-value exercise into low-value re-reading.
+
+Then tap **Reveal** to see the key points, and rate how it went:
+
+| Rating | Means |
+|---|---|
+| **Blank** | Nothing came back |
+| **Shaky** | Got the gist, missed the substance |
+| **Got it** | Solid recall |
+| **Easy** | Immediate and complete |
+
+Rate honestly. The rating feeds directly into when the concept next appears —
+inflating it means the card comes back too late, when you have genuinely
+forgotten it.
+
+This step makes no API calls. It costs nothing and works offline.
+
+### Step 2 — Lesson (1 model call)
+
+One new concept per day, at most. While it generates, you will see the model's
+reasoning summary streaming in — this is `thinking.display: "summarized"` doing
+something real, and it is on the syllabus.
+
+The lesson arrives in a fixed shape:
+
+1. **A worked example first.** The thing done correctly, with the reasoning
+   visible, before any explanation. Read it before you read the explanation —
+   the ordering is deliberate and it is one of the most robust findings in
+   instructional design.
+2. **The explanation**, building on the example rather than restating it.
+3. **A named misconception**, called out and refuted. Not a generic warning — a
+   specific wrong belief that people actually hold about this concept.
+4. **Three to five key takeaways** — the things that should survive if
+   everything else is forgotten. These become your warm-up card for this concept.
+5. **Sources**, linking back to the documentation the lesson drew on. The tutor
+   may only cite URLs it was given, so these are real links, not invented ones.
+
+At the bottom, if enabled, is a token-usage footer: input, output, cache read,
+cache write, latency. Worth glancing at.
+
+Tap **Mark as read** when finished.
+
+### Step 3 — Quiz (1 model call, plus 1 if you write free text)
+
+Four to eight questions mixing today's concept with older ones. The mixing is
+deliberate — interleaved practice is harder in the moment and measurably better
+for retention than answering ten questions about one topic in a row, because it
+forces you to work out which idea applies rather than pattern-matching to
+whatever you just read.
+
+Question types vary: multiple choice, multiple select, short answer, critique
+(here is some flawed code or a bad prompt — what is wrong with it), and
+prediction (what does this do before you are shown).
+
+**Before submitting each answer, state your confidence:** Guessing, Unsure,
+Fairly sure, or Certain.
+
+Answer this honestly. It is not scored and it is not judged. It is compared
+against whether you were actually right, and the gap is what produces the
+calibration reading on the Progress screen. If you always say "Certain" it
+measures nothing.
+
+After submitting, you see whether you were right, an explanation covering both
+why the correct answer is correct and why the tempting wrong answer is tempting,
+and — if you were confident and wrong — a specific note about it. That
+combination is the one worth paying attention to.
+
+Multiple-select questions award partial credit by overlap, so a near miss is not
+scored the same as a guess. Free-text answers are graded by the model after the
+quiz finishes.
+
+### Step 4 — Hands-on task (2 model calls)
+
+A task you do somewhere else and bring back. It might be writing a prompt,
+building something in Claude Code, running a request against Bedrock and
+analysing what came back, or explaining a concept in your own words.
+
+**The rubric is shown before you start.** Three to five criteria with weights and
+a description of what full credit looks like on each. Hidden rubrics teach people
+to guess at what a grader wants instead of at the actual skill.
+
+**The scope grows with your mastery.** The same concept produces very different
+tasks depending on where you are. At low mastery you get numbered steps and are
+told exactly what to submit. At high mastery you get a goal, a hard constraint,
+and are expected to defend your design decisions and say what you would measure
+to know it worked. This is the "tasks increase in scope as my knowledge
+progresses" behaviour, and it is computed rather than guessed — a concept's own
+difficulty sets the floor, demonstrated mastery raises the ceiling, and the scope
+never jumps more than one tier above the concept's own difficulty.
+
+Go and do the work. Come back, paste it in, tap **Submit for grading**.
+
+You get back a weighted score, a per-criterion breakdown with justifications
+quoting your submission, written feedback leading with what you got right,
+specific gaps tied to rubric criteria, and a single most-useful next action.
+
+The pass bar is 70%. Below that the concept stays in active rotation. Graded
+tasks count as applied work and carry their own weight in your mastery estimate,
+separately from quiz performance.
+
+> If you do not yet have an AWS account, tasks on AWS concepts adapt — you will
+> be asked to reason about a request, write the code, or read a policy rather
+> than provision live resources.
+
+### Step 5 — Reflection (free)
+
+One question asking you to explain the day's material in your own words, or to
+relate two concepts and say where confusing them would cause a real problem.
+
+It is stored and never graded. The value is entirely in the writing: if you
+cannot explain something plainly, you find out here rather than in a code review.
+You can skip it, and you should not.
+
+Finishing the last step completes the session and advances your streak.
+
+---
+
+## Part 4 — The other screens
+
+### Progress
+
+Four headline numbers — concepts mastered, started, total, and due right now —
+plus overall mastery across the whole curriculum.
+
+**Calibration** shows how well your confidence tracks your accuracy, as a bar
+either side of a centre line, with a plain-language reading: *"Well calibrated"*,
+*"Slightly overconfident on a few topics"*, *"Overconfident: you're often certain
+on answers you get wrong"*. This is the number most worth watching. It is
+computed from every confidence rating you have given.
+
+**Fading** lists concepts you are most likely to have forgotten, with an
+estimated recall percentage derived from an exponential forgetting curve over
+your review interval. These are what the scheduler will surface next.
+
+**Tracks** shows per-track progress. Tap one to expand it into its concept list,
+where each concept shows its state — locked, available, learning, in review, or
+mastered — its difficulty tier, and its mastery bar. Locked concepts tell you
+which prerequisite is holding them.
+
+### Library
+
+Every lesson you have read, searchable by title, concept or takeaway. Lessons are
+cached rather than regenerated, so reopening one costs nothing and shows you
+exactly the text you read the first time.
+
+### Settings
+
+Provider choice, credentials, model selection, region, daily goal, documentation
+sync, and profile management. Also where you switch or delete profiles.
+
+### Request inspector
+
+Under Settings → **Request inspector**. Every model call the app has made this
+run, with model, endpoint, token counts, cache reads and writes, latency, and an
+estimated cost. At the top: totals for the run and your cache hit rate.
+
+This is deliberately prominent rather than hidden behind a debug flag. Someone
+studying AI engineering should be watching their own token spend and cache
+behaviour rather than reading about someone else's. If the cache hit rate stays
+at zero after several sessions, something in the prompt prefix is changing
+between requests — which is exactly the diagnostic exercise the caching lessons
+describe.
+
+Cost figures use Anthropic list prices. Bedrock is billed separately by AWS at
+its own rates, and the UI says so.
 
 ---
 
 ## The curriculum
 
-104 concepts across 7 tracks, hand-authored as a prerequisite graph in
-`Praxis/Curriculum/Resources/curriculum.json`. At one new concept a day that's
-about five months.
+104 concepts across 7 tracks, authored as a prerequisite graph. At one new
+concept a day, roughly five months of material.
 
 | Track | Concepts | Covers |
 |---|---|---|
-| Prompting & Context Engineering | 14 | Request anatomy → context engineering → prompting long-horizon agents |
-| The Claude API | 18 | Messages API → caching, thinking, effort, structured outputs, cost |
-| Tool Use & Agents | 16 | Tool definitions → the agentic loop → tool surface design, Managed Agents |
-| Agentic Development | 12 | Claude Code as a harness → memory, hooks, skills, subagents, the Agent SDK |
-| Evaluation & Reliability | 9 | Why evals → graders → held-out splits → hillclimbing → model migration |
-| AWS & Amazon Bedrock | 23 | AWS accounts and IAM → SigV4 → InvokeModel → guardrails, knowledge bases, production architecture |
-| Production AI Engineering | 12 | Key management → latency, retries, injection defense → capstone |
+| **Prompting & Context Engineering** | 14 | Request anatomy, being explicit, structure and delimiters, examples, output shaping, context budgets, context engineering, prompting long-horizon agents |
+| **The Claude API** | 18 | Messages endpoint, content blocks, stop reasons, streaming, adaptive thinking, effort, prompt caching and its silent invalidators, structured outputs, batches, files, cost |
+| **Tool Use & Agents** | 16 | Tool definitions and schemas, the agentic loop, parallel calls, server-side tools, MCP, the four ways to build an agent, tool surface design, Managed Agents, subagent fan-out |
+| **Agentic Development** | 12 | Claude Code as a harness, memory files, permissions, slash commands, skills, hooks, MCP servers, subagents, the Agent SDK, headless CI |
+| **Evaluation & Reliability** | 9 | Why evals, sourcing cases, choosing graders, LLM judges and their biases, train/test splits, hillclimbing, regression testing, model migration |
+| **AWS & Amazon Bedrock** | 23 | AWS accounts, IAM, credentials, SigV4, the CLI; then Bedrock from what-it-is through InvokeModel, streaming, guardrails, knowledge bases, agents, quotas, observability, VPC isolation, and production architecture |
+| **Production AI Engineering** | 12 | Key management, latency, retries, observability, RAG, multimodal, refusal handling, approval gates, cost control, prompt injection defense, and a capstone |
+
+### How progression works
+
+Every concept sits in one of five states:
+
+- **Locked** — prerequisites not yet met
+- **Available** — unlocked, never studied
+- **Learning** — seen, mastery still below threshold
+- **Review** — good enough to build on, resurfacing on schedule
+- **Mastered** — sustained high performance across spaced repetitions
+
+A concept unlocks when all its prerequisites reach **Review** — not full mastery,
+or the tree would barely open. Mastery requires sustained performance across at
+least four repetitions with an interval of three weeks or more, which cannot be
+rushed.
+
+New concepts are chosen by lowest difficulty tier first, then by which track you
+have advanced least far in. That spread is deliberate: it keeps the AWS material
+moving alongside the prompting material rather than after it, and it gives the
+interleaved quizzes something to work with.
+
+**No more than seven concepts stay in flight at once.** Past roughly that many
+partially-learned ideas, everything degrades — so new material stops until the
+backlog clears. If you notice you are getting review-only days, that is the
+system working, not stalling.
 
 The graph is validated as a unit test: no cycles, no dangling prerequisites,
-every concept reachable, and tiers monotonic (nothing is rated easier than its
-hardest prerequisite).
+every concept reachable from a root, and tiers monotonic — nothing is rated
+easier than its hardest prerequisite.
 
-The AWS track assumes **zero** prior AWS knowledge and builds to production
-architecture. The Claude tracks assume you already know what tokens and context
-windows are, and start above that.
+---
 
-### Where content comes from
+## How the learning design works
 
-There is no public "Claude tutorials API." The material lives in Anthropic's
-docs, the `anthropics/courses` and `anthropic-cookbook` repositories, and AWS's
-Bedrock guide. So:
+Each of these is load-bearing rather than decorative.
 
-1. The **syllabus** — concepts, ordering, prerequisites, objectives, key ideas,
-   misconceptions — is authored and versioned in this repo.
-2. **Docs sync** fetches those 49 source URLs into a local corpus, extracting
-   text from HTML, Markdown, and Jupyter notebooks. ETag and Last-Modified
-   revalidation makes refreshes mostly cheap 304s.
-3. **Retrieval** picks the passages relevant to today's concept, within a fixed
-   character budget, and those ground the generated lesson.
+**Spaced repetition (SM-2), with two departures.** The textbook algorithm treats
+"answered correctly four times" as knowing something. It is not — you can pass
+four easy recalls and still be unable to apply the idea. So progression gates on
+a separate mastery estimate, and the interval only decides *when* a question
+returns. The second departure: being wrong while *certain* schedules the card for
+tomorrow regardless of interval, because you have no internal signal telling you
+to review it.
 
-Lessons cite only URLs from the supplied list, so the model cannot invent a
+**Retrieval practice before new material.** Every session opens with recall. This
+is the highest-value part of the app and it is deliberately free of model calls,
+so it can never be blocked by a rate limit, a missing key, or no signal.
+
+**Interleaving.** Quizzes mix concepts rather than blocking on one. Harder in the
+moment, better for retention and for learning to discriminate between similar
+ideas.
+
+**Worked examples, then faded practice.** Lessons lead with a solved example.
+Tasks start heavily scaffolded and progressively remove the scaffolding as
+mastery rises.
+
+**Confidence calibration.** Stated before each reveal, compared against
+correctness, tracked per concept, surfaced on Progress.
+
+**Elaborative interrogation.** Lessons name a specific misconception and refute
+it, rather than only presenting the correct version — which leaves the wrong
+version untouched.
+
+**Self-explanation.** The closing reflection, ungraded on purpose.
+
+---
+
+## Where content comes from
+
+There is no public "Claude tutorials API". The material lives across Anthropic's
+documentation, the courses and cookbook repositories, and AWS's Bedrock guide.
+So the app works in three layers:
+
+**The syllabus is authored and versioned in this repository** —
+`Praxis/Curriculum/Resources/curriculum.json`. Concepts, ordering, prerequisites,
+learning objectives, key ideas, misconceptions, and source references. This is
+what stops generated lessons drifting into a different curriculum.
+
+**Documentation sync builds a local corpus.** The 49 source URLs are fetched,
+with HTML reduced to text, Markdown passed through, and Jupyter notebooks
+stripped to their markdown and code cells. ETag and Last-Modified revalidation
+keeps refreshes cheap.
+
+**Retrieval grounds each lesson.** For a given concept, the app scores corpus
+documents — an explicit curriculum tag outranks keyword coincidence — then picks
+the most relevant paragraphs within a fixed character budget and re-emits them in
+document order so the excerpt still reads as prose. That, not the whole corpus,
+is what goes into the prompt.
+
+Lessons may cite only URLs from the supplied list, so the tutor cannot invent a
 plausible-looking documentation link.
 
-> The source URLs were written to match each documentation site's structure at
-> time of authoring. Some will drift. Failures are reported per-source in
-> Settings → Sync, and a lesson with no corpus hit still generates — it just
-> says so rather than bluffing.
+---
+
+## What it costs to run
+
+Roughly four to five model calls per session:
+
+| Step | Model | Why |
+|---|---|---|
+| Warm-up | — | No call |
+| Lesson | Opus 5, high effort | Needs the reasoning |
+| Quiz generation | Haiku 4.5 | Mechanical work from an already-written lesson |
+| Short-answer grading | Haiku 4.5 | Only if you wrote free text |
+| Task generation | Opus 5, high effort | Design judgement |
+| Task grading | Opus 5, high effort | Judgement, and it must be accurate |
+| Reflection | — | No call |
+
+The stable part of every system prompt — the tutor instructions, identical on
+every request the app makes — sits behind a one-hour cache breakpoint, with
+per-request content after it. That is the whole reason for the ordering, and the
+request inspector lets you confirm it is working.
+
+Exact cost depends on your models and how much source material gets retrieved.
+Watch the inspector for a few days and you will have a real number rather than
+an estimate — which is, not coincidentally, the habit the cost lessons are
+trying to build.
+
+---
+
+## Multiple profiles
+
+Profiles are fully local. No accounts, no login, no server, no sync.
+
+Each profile keeps its own progress graph, review schedule, mastery estimates,
+calibration history, streak, lesson library and task submissions. Switching is
+instant — tap your avatar on the Today screen, or use Settings → Switch profile.
+
+Two things are shared across profiles: the documentation corpus (it is public
+documentation, and refetching it per profile would waste bandwidth and rate
+limit) and the credentials in the Keychain.
+
+Deleting a profile removes everything belonging to it — progress, lessons,
+quizzes, tasks, reflections. This cannot be undone.
+
+---
+
+## Privacy and data
+
+Everything lives on the device. There is no backend, no analytics, no telemetry,
+and no account.
+
+**Credentials** are in the iOS Keychain, device-only, excluded from iCloud
+Keychain and from backups. They are sent only to the provider you chose, as an
+`x-api-key` header or a SigV4 signature.
+
+**Your learning data** — progress, submissions, reflections — is in a local
+SwiftData store. It is not transmitted anywhere. Delete the app and it is gone;
+there is no export yet.
+
+**What does leave the device:** the content of generation requests. Your name,
+your stated prior knowledge, the concept being taught, retrieved documentation
+excerpts, and — when you submit a task — the work you paste in. That goes to
+Anthropic or to AWS depending on your provider, and is subject to their terms.
+
+**The request inspector** keeps prompts and responses in memory only, for the
+current run. Nothing is persisted.
 
 ---
 
 ## Architecture
 
+For anyone modifying this.
+
 ```
 Praxis/
 ├─ App/              Entry point, environment, SwiftData repository
-├─ DesignSystem/     Claude-derived palette, components, Markdown renderer
-├─ Models/           SwiftData entities + the model catalog
+├─ DesignSystem/     Palette, components, Markdown renderer
+├─ Models/           SwiftData entities and the model catalog
 ├─ Curriculum/       Concept graph types, store, curriculum.json
 ├─ Providers/        LLMProvider protocol, Anthropic, Bedrock, SigV4, event stream
 ├─ Learning/         SM-2, mastery model, session planner
@@ -169,70 +635,107 @@ Praxis/
 └─ Features/         Profiles, Today, Lesson, Quiz, Tasks, Progress, Library, Settings
 ```
 
-### The provider layer
+**The learning engine is pure.** `SpacedRepetition`, `SessionPlanner` and
+`MasteryModel` operate on plain values, not on SwiftData objects. That is why
+they are thoroughly testable, and why a scheduling bug can never leave a
+half-updated managed object behind.
 
-One `LLMProvider` protocol, two implementations. Everything above it is
-provider-agnostic, which is what makes the Settings toggle real rather than
-cosmetic.
+**Persistence uses foreign keys, not relationships.** Child records carry a
+`learnerID` rather than a SwiftData relationship, because `#Predicate` traversal
+across relationships has been unreliable. The cost is an explicit cascade in
+`LearningRepository.deleteLearner`; the benefit is predictable queries and a
+straightforward path to CloudKit sync later.
 
-|  | Anthropic | Bedrock |
+**The provider layer is genuinely abstract.** One protocol, two implementations,
+and everything above it is provider-agnostic — which is what makes the Settings
+toggle real rather than cosmetic.
+
+| | Anthropic | Bedrock |
 |---|---|---|
 | Endpoint | `api.anthropic.com/v1/messages` | `bedrock-runtime.<region>.amazonaws.com/model/<id>/invoke` |
 | Auth | `x-api-key` header | SigV4, service `bedrock` |
 | Model ID | `claude-opus-5`, in the body | `anthropic.claude-opus-5`, in the URL path |
 | Version | `anthropic-version` header | `anthropic_version` body field |
-| Streaming | SSE | Binary `vnd.amazon.eventstream` frames |
+| Streaming | Server-sent events | Binary `vnd.amazon.eventstream` frames |
 
-The streaming difference is the interesting one: the JSON events *inside*
+The streaming difference is the interesting one. The JSON events *inside*
 Bedrock's binary frames are byte-identical to the first-party SSE payloads, so
-`StreamAccumulator` is shared and both providers stay thin. SigV4 signing and
-the event-stream decoder are hand-written (no AWS SDK dependency) and tested
-against AWS's published reference vectors.
+`StreamAccumulator` is shared between both providers and each provider stays
+thin. SigV4 signing and the event-stream decoder are hand-written with no AWS SDK
+dependency, and the signing is tested against AWS's published reference vectors.
 
-Structured output uses **strict tools** rather than a response-format
-parameter, because strict tool use is supported on both providers.
+**Structured output uses strict tools** rather than a response-format parameter,
+because strict tool use is supported on both providers and the newer response
+formats are not.
 
-### Cost
-
-Roughly 4–5 model calls per session. Lessons and grading run on Opus 5; quiz
-generation runs on Haiku 4.5, since generating items from an already-written
-lesson is mechanical work.
-
-The stable part of every system prompt sits behind a one-hour cache breakpoint,
-with per-request content after it. **Settings → Request inspector** shows every
-call with tokens, cache hit rate, latency, and estimated cost. Watching your own
-cache hit rate is itself part of the syllabus — if it stays at zero, something
-in the prefix is changing between requests.
-
-Cost figures use Anthropic list prices. Bedrock is billed separately by AWS at
-its own rates, and the UI says so.
+**Grading is reconciled.** The model returns both a per-criterion breakdown and
+an overall score, and they sometimes disagree. The app recomputes the overall
+from the weighted breakdown, because the breakdown is what the learner sees — a
+headline score contradicting its own justification destroys trust in grading
+entirely.
 
 ---
 
-## Deliberate tradeoffs
+## Troubleshooting
 
-**API keys live on the device.** For a single-user personal app with no backend,
-Keychain storage is the pragmatic choice. It does not generalise: anything with
-real users needs a backend proxy holding the credential, which is also where
-per-user rate limiting, spend caps, and audit logging belong. This is lesson
-`prod-key-management`, and the app is an explicit counterexample to its own
-advice.
+**Xcode shows an empty project.** You are on Xcode 15 or earlier. Upgrade, or run
+`xcodegen generate`.
 
-**Profiles are local only.** No accounts, no sync, no server. Delete the app and
-the data is gone. CloudKit sync would be a contained change — the models use
-`learnerID` foreign keys rather than relationships, so a sync layer wouldn't
-have to untangle an object graph.
+**"No API credentials yet" on the Today screen.** No provider is configured. Add
+one in Settings. Warm-up reviews still work.
 
-**Generated content is cached, not regenerated.** Reopening a lesson costs
-nothing and shows exactly the text you read the first time.
+**Bedrock returns 403 AccessDenied.** Two distinct causes, and the message
+distinguishes them: either the IAM principal lacks `bedrock:InvokeModel`, or
+model access has not been granted for that model in that region. Check both.
+Region mismatch is the more common one.
+
+**Bedrock returns ValidationException on the model ID.** Either the `anthropic.`
+prefix is missing, or the model requires an inference profile rather than a bare
+ID in that region.
+
+**Rate limited (429).** The app surfaces the retry-after value. Wait it out.
+
+**Documentation sync reports failures.** Expected for some sources —
+documentation sites restructure. Failures are listed per-source. Lessons for
+affected concepts still generate, with weaker grounding.
+
+**Cache hit rate stays at zero.** Check the request inspector after several
+lessons. If it is still zero, something in the prompt prefix is varying between
+requests. This is a real diagnostic exercise and the caching lessons walk through
+how to find it.
+
+**"The model did not call emit_lesson."** The model answered in prose instead of
+calling the structured-output tool. Usually transient — retry. If persistent on
+one concept, the concept's key ideas may be triggering a refusal.
+
+---
 
 ## Known gaps
 
-- Never compiled. Expect first-build errors.
-- No app icon (the asset slot is there and empty).
-- Grading quality is unvalidated. There is no eval for the tutor itself, which
-  is a slightly awkward omission in an app that teaches you to build evals — the
-  honest next step is a small eval set of submissions with known grades.
-- Docs sync is sequential and can take a minute or two on first run.
-- Bedrock model IDs assume plain identifiers. Raw ARNs as model IDs would need
-  the second URI-encoding pass that SigV4 requires for non-S3 services.
+**Never compiled.** Stated again because it is the most important thing to know.
+
+**No app icon.** The asset slot exists and is empty.
+
+**No eval for the tutor itself.** Grading quality is unvalidated, which is an
+awkward omission in an app that teaches you to build evals. The honest fix is a
+small set of submissions with known grades, run against the grading prompt. This
+is the first thing worth adding.
+
+**No export.** Your learning history cannot be extracted. Deleting the app loses
+it.
+
+**No CloudKit sync.** Deliberate for v1, and the foreign-key data model makes it
+a contained change rather than an untangling.
+
+**Documentation sync is sequential.** A minute or two on first run. Concurrency
+would burn GitHub's anonymous rate limit immediately, so it is sequential on
+purpose, but a token plus bounded concurrency would improve it.
+
+**Bedrock model IDs assume plain identifiers.** Raw ARNs would need the second
+URI-encoding pass SigV4 requires for non-S3 services.
+
+---
+
+## License
+
+None yet. Add one before sharing this further.
