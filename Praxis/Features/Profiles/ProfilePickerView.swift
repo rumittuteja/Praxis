@@ -101,7 +101,7 @@ private struct ProfileRow: View {
         Card {
             HStack(spacing: 14) {
                 Text(learner.avatarEmoji)
-                    .font(.system(size: 32))
+                    .font(Glyph.emoji(32))
                     .frame(width: 52, height: 52)
                     .background(Palette.accentWash(scheme))
                     .clipShape(Circle())
@@ -124,13 +124,13 @@ private struct ProfileRow: View {
                             .font(Typeface.semibold(18))
                             .foregroundStyle(Palette.accent)
                         Text("day\(learner.currentStreak == 1 ? "" : "s")")
-                            .font(.system(size: 10))
+                            .font(Typeface.nano(.regular))
                             .foregroundStyle(Palette.inkTertiary(scheme))
                     }
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Glyph.icon(13, weight: .semibold))
                     .foregroundStyle(Palette.inkTertiary(scheme))
             }
         }

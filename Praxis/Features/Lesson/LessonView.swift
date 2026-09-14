@@ -101,7 +101,7 @@ struct LessonView: View {
                             Link(destination: url) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "arrow.up.right.square")
-                                        .font(.system(size: 12))
+                                        .font(Glyph.icon(12))
                                     Text(citation.title)
                                         .font(Typeface.body(14))
                                         .multilineTextAlignment(.leading)

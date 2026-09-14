@@ -136,6 +136,24 @@ Adding a concept means adding the JSON object and running that suite. Concept
 match keys (`DocsSyncService.keywords`), so descriptive hyphenated ids like
 `bedrock-invoke-model` work materially better than opaque ones.
 
+## Theming
+
+All color and type resolves through `DesignSystem/Theme.swift`. There are no
+color hex literals and no raw `.system(size:)` calls anywhere else in the app,
+and it is worth keeping it that way — a re-skin should stay a one-file edit.
+
+- `Palette.accentHex` is the single source of truth for the accent.
+  `AccentColor` in the asset catalog carries the same value because system
+  chrome reads the asset rather than our code, and `ThemeTests` asserts they
+  match in both appearances. Change one, change both.
+- `Palette.onAccent` is **derived** from the accent's WCAG relative luminance,
+  not hardcoded, so a pale accent cannot produce white-on-white. The 0.5
+  threshold deliberately preserves white-on-clay rather than maximising
+  contrast; see the comment on the property before changing it.
+- `Typeface` is for text, `Glyph` is for SF Symbols and emoji. They are separate
+  so that scaling text later does not resize icons.
+- Sizes are **not** Dynamic Type aware — see Known gaps.
+
 ## Conventions worth preserving
 
 - **Lessons cite only supplied URLs.** `citedSourceURLs` is validated against the
@@ -149,8 +167,17 @@ match keys (`DocsSyncService.keywords`), so descriptive hyphenated ids like
 - **Credentials only ever touch `CredentialStore`.** Nothing else reads or writes
   the Keychain, and no code path logs or displays a saved secret.
 
-## Known gap
+## Known gaps
 
-There is no eval for the tutor's own grading quality, in an app whose curriculum
+**No eval for the tutor's own grading quality**, in an app whose curriculum
 teaches you to build evals. A small set of submissions with known grades run
 against the grading prompt is the first thing worth adding.
+
+**No Dynamic Type support.** Every font is a fixed point size, so the app
+ignores the user's text-size setting entirely. Fixing it properly means either
+mapping `Typeface` onto semantic text styles (`.body`, `.caption`) and accepting
+their sizes, or driving sizes through `@ScaledMetric` per view — and then
+checking the layout survives at accessibility sizes. That is a design pass, not
+a mechanical change, and it cannot be validated without running the app. The
+10pt `Typeface.nano` role is below Apple's 11pt legibility guidance and is the
+first thing to revisit.

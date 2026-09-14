@@ -67,7 +67,7 @@ struct RequestInspectorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Text("Cost is estimated at Anthropic list prices. Bedrock is billed separately by AWS at its own rates.")
-                    .font(.system(size: 11))
+                    .font(Typeface.micro())
                     .foregroundStyle(Palette.inkTertiary(scheme))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -80,7 +80,7 @@ struct RequestInspectorView: View {
                 .font(Typeface.semibold(17))
                 .foregroundStyle(Palette.ink(scheme))
             Text(label)
-                .font(.system(size: 10))
+                .font(Typeface.nano(.regular))
                 .foregroundStyle(Palette.inkTertiary(scheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

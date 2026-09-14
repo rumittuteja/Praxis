@@ -134,7 +134,7 @@ struct QuizView: View {
                     } label: {
                         Text(level.label)
                             .font(Typeface.body(13))
-                            .foregroundStyle(confidence == level ? .white : Palette.ink(scheme))
+                            .foregroundStyle(confidence == level ? Palette.onAccent : Palette.ink(scheme))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                             .background(confidence == level ? Palette.accent : Palette.surface(scheme))
@@ -255,7 +255,7 @@ private struct OptionRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 16))
+                .font(Glyph.icon(16))
                 .foregroundStyle(tint)
             Text(MarkdownParser.inline(text))
                 .font(Typeface.body(15))

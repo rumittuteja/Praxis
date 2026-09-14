@@ -30,7 +30,7 @@ struct ProfileEditorView: View {
                             ForEach(emojiChoices, id: \.self) { choice in
                                 Button { emoji = choice } label: {
                                     Text(choice)
-                                        .font(.system(size: 26))
+                                        .font(Glyph.emoji(26))
                                         .frame(width: 44, height: 44)
                                         .background(
                                             Circle().fill(emoji == choice

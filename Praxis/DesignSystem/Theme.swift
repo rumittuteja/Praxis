@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Claude-inspired palette: warm paper neutrals with a clay accent.
@@ -40,13 +41,48 @@ enum Palette {
 
     // MARK: Accent
 
-    /// The Claude clay/coral. Primary actions, active states, focus rings.
-    static let accent = Color(hex: 0xD97757)
+    /// The Claude clay/coral, as a raw hex value.
+    ///
+    /// Single source of truth for the accent. `AccentColor` in the asset
+    /// catalog must carry the same value — `ThemeTests` enforces that, because
+    /// the two are read by different consumers (this one by our own views, the
+    /// asset by system chrome) and nothing else would catch them drifting.
+    static let accentHex: UInt32 = 0xD97757
+
+    /// Primary actions, active states, focus rings.
+    static let accent = Color(hex: accentHex)
     static let accentPressed = Color(hex: 0xC2634A)
+
+    /// Foreground for content sitting on top of `accent`.
+    ///
+    /// Derived from the accent's luminance rather than hardcoded to white, so
+    /// swapping in a pale accent can't leave white-on-white text.
+    ///
+    /// The 0.5 threshold is a design-preserving heuristic, not a contrast
+    /// maximiser. Maximising would put dark ink on the clay accent (5.33:1
+    /// against 3.12:1 for white), which is not the intended look. White on the
+    /// current clay is 3.12:1 — enough for WCAG AA at large or bold sizes,
+    /// which is the only place it is used, but not enough for body text. If you
+    /// change the accent, check that whatever this returns still clears the bar
+    /// for the sizes you use it at.
+    static var onAccent: Color {
+        relativeLuminance(of: accentHex) > 0.5 ? Color(hex: 0x1F1E1D) : .white
+    }
 
     /// Low-emphasis accent wash for badges and selected rows.
     static func accentWash(_ scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: 0xD97757).opacity(0.16) : Color(hex: 0xD97757).opacity(0.10)
+        accent.opacity(scheme == .dark ? 0.16 : 0.10)
+    }
+
+    /// WCAG relative luminance of a packed RGB value, 0 (black) to 1 (white).
+    static func relativeLuminance(of hex: UInt32) -> Double {
+        func channel(_ raw: UInt32) -> Double {
+            let value = Double(raw) / 255
+            return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel((hex >> 16) & 0xFF)
+             + 0.7152 * channel((hex >> 8) & 0xFF)
+             + 0.0722 * channel(hex & 0xFF)
     }
 
     // MARK: Semantic
@@ -99,6 +135,47 @@ enum Typeface {
 
     /// Code, token counts, model IDs.
     static func mono(_ size: CGFloat = 14) -> Font { .system(size: size, weight: .regular, design: .monospaced) }
+
+    // Small roles. These sizes were previously repeated as literals at call
+    // sites; naming them changed nothing visually, it just stopped the type
+    // scale living in twenty files.
+
+    /// Supporting text: dates, footnotes, secondary detail.
+    static func caption(_ weight: Font.Weight = .regular) -> Font {
+        .system(size: 12, weight: weight, design: .default)
+    }
+
+    /// Micro labels: stat captions, chart axis labels, prerequisite hints.
+    static func micro(_ weight: Font.Weight = .regular) -> Font {
+        .system(size: 11, weight: weight, design: .default)
+    }
+
+    /// The smallest label in the app: uppercase chips and unit suffixes only.
+    /// This sits below Apple's 11pt legibility guidance, so it must never carry
+    /// prose or anything a learner has to read carefully.
+    static func nano(_ weight: Font.Weight = .semibold) -> Font {
+        .system(size: 10, weight: weight, design: .default)
+    }
+
+    /// Monospaced micro label — code-fence language tags.
+    static func monoNano(_ weight: Font.Weight = .semibold) -> Font {
+        .system(size: 10, weight: weight, design: .monospaced)
+    }
+}
+
+/// Sizing for SF Symbols and emoji.
+///
+/// Deliberately separate from `Typeface`: these size a picture, not text. They
+/// should not inherit the type scale, and they should not be swept up by a
+/// future Dynamic Type mapping that scales body copy.
+enum Glyph {
+    static func icon(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight)
+    }
+
+    static func emoji(_ size: CGFloat) -> Font {
+        .system(size: size)
+    }
 }
 
 enum Metrics {

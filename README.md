@@ -23,6 +23,7 @@ to do that gets graded against a rubric.
 - [Multiple profiles](#multiple-profiles)
 - [Privacy and data](#privacy-and-data)
 - [Architecture](#architecture)
+- [Theming](#theming)
 - [Troubleshooting](#troubleshooting)
 - [Known gaps](#known-gaps)
 
@@ -676,6 +677,30 @@ entirely.
 
 ---
 
+## Theming
+
+The visual design is Claude-derived: warm paper neutrals, a clay accent, a serif
+face for lesson titles. All of it lives in `Praxis/DesignSystem/Theme.swift`,
+and nothing outside that file contains a color literal or a raw font size.
+
+Re-skinning the app is therefore a single-file edit — roughly fourteen values
+covering surfaces, text, accent, semantic states and the seven per-track hues,
+each defined for light and dark side by side. Two things are worth knowing
+before you change the accent:
+
+1. **Change it in two places.** `Palette.accentHex` in code, and `AccentColor`
+   in the asset catalog, which system chrome reads instead. A unit test asserts
+   they match, so you will be told if you forget.
+2. **The foreground on top of the accent is derived, not fixed.** It flips
+   between white and dark ink based on the accent's luminance, so a pale accent
+   will not leave you with invisible button labels.
+
+What is *not* configurable: there is no theme picker in the app. Light and dark
+follow the system setting and cannot be overridden in-app, and there is no
+user-selectable palette. Making the theme switchable at runtime would mean
+replacing the static palette lookups with an environment-injected theme object —
+contained, but it touches every view.
+
 ## Troubleshooting
 
 **Xcode shows an empty project.** You are on Xcode 15 or earlier. Upgrade, or run
@@ -733,6 +758,16 @@ purpose, but a token plus bounded concurrency would improve it.
 
 **Bedrock model IDs assume plain identifiers.** Raw ARNs would need the second
 URI-encoding pass SigV4 requires for non-S3 services.
+
+**No Dynamic Type support.** All font sizes are fixed points, so the app ignores
+the system text-size setting. This matters for accessibility and it is the
+largest known gap in the UI. Fixing it is a design pass rather than a mechanical
+one — the layout needs checking at accessibility sizes — so it was flagged
+rather than guessed at. The smallest role in the type scale is 10pt, below
+Apple's 11pt legibility guidance, and is used only for uppercase chips and unit
+suffixes.
+
+**No theme picker.** See [Theming](#theming).
 
 ---
 

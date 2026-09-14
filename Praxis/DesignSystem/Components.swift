@@ -29,7 +29,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Typeface.semibold(16))
-            .foregroundStyle(.white)
+            .foregroundStyle(Palette.onAccent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(configuration.isPressed ? Palette.accentPressed : Palette.accent)
@@ -68,7 +68,7 @@ struct TrackBadge: View {
 
     var body: some View {
         Text(label.uppercased())
-            .font(.system(size: 10, weight: .semibold))
+            .font(Typeface.nano())
             .tracking(0.6)
             .foregroundStyle(Palette.track(trackID))
             .padding(.horizontal, 8)
@@ -160,7 +160,7 @@ struct CodeBlock: View {
         VStack(alignment: .leading, spacing: 6) {
             if let language, !language.isEmpty {
                 Text(language)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(Typeface.monoNano())
                     .foregroundStyle(Palette.inkTertiary(scheme))
             }
             ScrollView(.horizontal, showsIndicators: false) {
@@ -189,7 +189,7 @@ struct StatusMessage: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 28, weight: .light))
+                .font(Glyph.icon(28, weight: .light))
                 .foregroundStyle(tint)
             Text(title)
                 .font(Typeface.semibold(17))

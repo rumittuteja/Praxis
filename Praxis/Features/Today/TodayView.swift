@@ -33,7 +33,7 @@ struct TodayView: View {
                     Button {
                         env.activeLearnerID = nil
                     } label: {
-                        Text(learner.avatarEmoji).font(.system(size: 20))
+                        Text(learner.avatarEmoji).font(Glyph.emoji(20))
                     }
                     .accessibilityLabel("Switch profile")
                 }
@@ -72,7 +72,7 @@ struct TodayView: View {
                             .font(Typeface.semibold(22))
                             .foregroundStyle(Palette.accent)
                         Text("day streak")
-                            .font(.system(size: 10))
+                            .font(Typeface.nano(.regular))
                             .foregroundStyle(Palette.inkTertiary(scheme))
                     }
                 }
@@ -179,7 +179,7 @@ private struct StepRow: View {
                         .fill(isDone ? Palette.success.opacity(0.15) : Palette.accentWash(scheme))
                         .frame(width: 40, height: 40)
                     Image(systemName: isDone ? "checkmark" : step.symbol)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(Glyph.icon(16, weight: .medium))
                         .foregroundStyle(isDone ? Palette.success : Palette.accent)
                 }
 
@@ -197,7 +197,7 @@ private struct StepRow: View {
 
                 if isNext {
                     Text("NEXT")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Typeface.nano())
                         .tracking(0.6)
                         .foregroundStyle(Palette.accent)
                         .padding(.horizontal, 7)
@@ -207,7 +207,7 @@ private struct StepRow: View {
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(Glyph.icon(12, weight: .semibold))
                     .foregroundStyle(Palette.inkTertiary(scheme))
             }
         }

@@ -67,7 +67,7 @@ struct ProgressMapView: View {
                 .font(Typeface.semibold(22))
                 .foregroundStyle(Palette.ink(scheme))
             Text(label)
-                .font(.system(size: 11))
+                .font(Typeface.micro())
                 .foregroundStyle(Palette.inkTertiary(scheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -107,9 +107,9 @@ struct ProgressMapView: View {
                 .frame(height: 12)
 
                 HStack {
-                    Text("underconfident").font(.system(size: 10))
+                    Text("underconfident").font(Typeface.nano(.regular))
                     Spacer()
-                    Text("overconfident").font(.system(size: 10))
+                    Text("overconfident").font(Typeface.nano(.regular))
                 }
                 .foregroundStyle(Palette.inkTertiary(scheme))
             }
@@ -194,7 +194,7 @@ private struct TrackCard: View {
                                 .foregroundStyle(Palette.ink(scheme))
                             Spacer()
                             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(Glyph.icon(11, weight: .semibold))
                                 .foregroundStyle(Palette.inkTertiary(scheme))
                         }
                         Text("\(summary.mastered) mastered · \(summary.startedCount) of \(summary.total) started")
@@ -238,7 +238,7 @@ private struct ConceptRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 13))
+                .font(Glyph.icon(13))
                 .foregroundStyle(tint)
                 .frame(width: 16)
 
@@ -252,7 +252,7 @@ private struct ConceptRow: View {
                 }
                 if state == .locked, let first = missing.first {
                     Text("Needs \(first.title)\(missing.count > 1 ? " +\(missing.count - 1) more" : "")")
-                        .font(.system(size: 11))
+                        .font(Typeface.micro())
                         .foregroundStyle(Palette.inkTertiary(scheme))
                 } else if mastery > 0 {
                     MasteryBar(value: mastery, tint: Palette.track(concept.trackID), height: 3)

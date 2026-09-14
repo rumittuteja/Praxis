@@ -85,7 +85,7 @@ struct LibraryView: View {
                         .multilineTextAlignment(.leading)
                 }
                 Text(lesson.generatedAt.formatted(date: .abbreviated, time: .omitted))
-                    .font(.system(size: 11))
+                    .font(Typeface.micro())
                     .foregroundStyle(Palette.inkTertiary(scheme))
             }
         }
