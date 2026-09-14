@@ -177,6 +177,34 @@ it at build time, so do not hand-maintain it.
 - `Prompts.languageInstruction(for:)` makes generated lessons follow the device
   language. It returns nil for English, and lands after the cache breakpoint.
 
+## Content freshness
+
+Three layers, three update paths. Know which one a change belongs in.
+
+- **Syllabus** — `curriculum.json` is published in this repo and fetched at
+  runtime by `CurriculumUpdater` from the raw URL on `main`. **To ship a new
+  concept: edit the JSON, bump `version`, run `CurriculumTests`, commit.** No
+  app release. A downloaded syllabus is adopted only if it is newer *and*
+  `integrityProblems()` is empty — validate before adopting, never after. The
+  bundled copy is the floor and is never deleted.
+- **Corpus** — `SourceDiscovery` crawls the `llms.txt` indexes on
+  docs.claude.com and code.claude.com plus the AWS Bedrock sitemap, so pages
+  published after the syllabus was written are still found. Discovered pages
+  supplement the curated list; `DocSnapshot.isDiscovered` makes retrieval rank
+  them below it (15 versus 50). Do not collapse that distinction.
+- **Lesson prose** — generated per session, current by construction.
+
+`SourceDiscovery.relevanceThreshold` and the weights in `score(_:for:)` were
+tuned against the real 831-page indexes, not guessed. Id tokens and title words
+carry the score; key-idea words are capped at 3 because they are generic enough
+to match anything. Lowering the threshold pulls in near-misses that displace
+good context in a fixed retrieval budget.
+
+Progress rows are keyed by concept id and outlive a syllabus that drops the
+concept. `SessionPlanner` filters ids the store does not know — keep that guard
+on any new code reading the progress map, or a removed concept silently eats a
+warm-up slot.
+
 ## Conventions worth preserving
 
 - **Lessons cite only supplied URLs.** `citedSourceURLs` is validated against the

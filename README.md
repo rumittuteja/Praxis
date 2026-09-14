@@ -22,6 +22,7 @@ to do that gets graded against a rubric.
 - [What it costs to run](#what-it-costs-to-run)
 - [Multiple profiles](#multiple-profiles)
 - [Privacy and data](#privacy-and-data)
+- [Keeping the curriculum current](#keeping-the-curriculum-current)
 - [Architecture](#architecture)
 - [Theming](#theming)
 - [Localization](#localization)
@@ -526,6 +527,52 @@ version untouched.
 **Self-explanation.** The closing reflection, ungraded on purpose.
 
 ---
+
+## Keeping the curriculum current
+
+Content ages in three layers, and each updates differently.
+
+**Lesson prose is generated per session**, so it always reflects whatever is in
+the corpus at the time. Nothing to update.
+
+**The document corpus refreshes on sync.** Curated sources are revalidated with
+ETags, and beyond those the app crawls the `llms.txt` indexes that both
+Anthropic documentation sites publish — 831 pages between them — plus the AWS
+Bedrock sitemap. Pages written *after* the syllabus was authored are therefore
+still found, which a hardcoded list of 49 URLs can never manage.
+
+Discovered pages supplement the curated ones rather than replacing them. A
+hand-picked source encodes an editorial judgement about which page best teaches
+a concept; a keyword match does not. Retrieval scores curated sources well above
+discovered ones, so a discovery fills a gap but never displaces a deliberate
+choice.
+
+The matching is deliberately conservative. Scoring is carried by the concept's
+id tokens and title words, with words from its key ideas capped so they can only
+break ties — a flat keyword count matched "hooks" to a page about cloud
+environments, and a wrong page is worse than no page because it consumes a fixed
+retrieval budget. At the tuned threshold roughly three quarters of concepts gain
+a page, and the ones that don't correctly get nothing.
+
+Anthropic docs are fetched as Markdown (`page.md`) rather than scraped HTML, so
+the model gets clean prose instead of the output of a tag-stripping regex.
+
+**The syllabus updates without an App Store release.** `curriculum.json` is
+published in this repository, and the app checks the raw URL on demand. A
+downloaded syllabus is adopted only if it is both newer than the bundled copy
+*and* passes full validation — a dangling prerequisite would lock concepts
+permanently, so the graph is checked before adoption, not after. The bundled
+copy is the floor and is never removed, so a bad publish, a corrupt cache, or a
+first launch offline all degrade to a working app.
+
+Progress is keyed by concept id, so it survives updates: concepts that still
+exist carry on, new ones appear as available, and rows for removed concepts sit
+dormant rather than being deleted, in case the concept returns. **Settings →
+Curriculum** shows the current version and where it came from, checks for
+updates, and can revert to the bundled syllabus.
+
+Adding a concept is therefore: edit `curriculum.json`, bump `version`, run the
+curriculum tests, commit. Every install picks it up on its next check.
 
 ## Where content comes from
 
