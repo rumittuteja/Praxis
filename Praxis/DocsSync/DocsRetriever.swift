@@ -59,9 +59,15 @@ struct DocsRetriever: Sendable {
     }
 
     private func documentScore(_ doc: DocSnapshot, concept: Concept, terms: [String]) -> Int {
-        // An explicit tag from the curriculum outranks any amount of keyword
-        // coincidence — the syllabus author said this page is relevant.
-        var score = doc.conceptTags.contains(concept.id) ? 50 : 0
+        // A tag from the syllabus outranks any amount of keyword coincidence.
+        // A discovered page is tagged too, but its tag came from a keyword
+        // match, so it sits well below a curated source while still beating an
+        // untagged document — enough to fill a gap, not enough to displace an
+        // editorial choice.
+        var score = 0
+        if doc.conceptTags.contains(concept.id) {
+            score += doc.isDiscovered ? 15 : 50
+        }
         let haystack = (doc.title + " " + doc.content).lowercased()
         for term in terms where haystack.contains(term) { score += 1 }
         return score

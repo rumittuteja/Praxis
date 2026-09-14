@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var githubToken = ""
     @State private var showingDeleteConfirm = false
     @State private var syncing = false
+    @State private var checkingCurriculum = false
 
     private var repository: LearningRepository { LearningRepository(context: modelContext) }
 
@@ -25,6 +26,7 @@ struct SettingsView: View {
                 anthropicSection
                 bedrockSection
                 cadenceSection
+                curriculumSection
                 docsSection
                 inspectorSection
                 profileSection
@@ -172,6 +174,48 @@ struct SettingsView: View {
         }
     }
 
+    private var curriculumSection: some View {
+        Section {
+            LabeledContent("Concepts", value: Format.count(env.curriculum.allConcepts.count))
+            LabeledContent("Syllabus version", value: Format.count(env.curriculum.curriculum.version))
+            LabeledContent("Source", value: env.curriculum.origin == .downloaded
+                           ? String(localized: "Downloaded", comment: "Syllabus came from the published copy")
+                           : String(localized: "Bundled", comment: "Syllabus came with the app"))
+
+            Button(checkingCurriculum ? "Checking…" : "Check for new concepts") {
+                checkingCurriculum = true
+                Task {
+                    await env.checkForCurriculumUpdate()
+                    checkingCurriculum = false
+                }
+            }
+            .disabled(checkingCurriculum)
+
+            if let update = env.lastCurriculumUpdate {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Updated to version \(Format.count(update.newVersion)) · \(Format.count(update.conceptCount)) concepts")
+                        .font(.caption)
+                    if !update.newConceptIDs.isEmpty {
+                        Text("Added: \(update.newConceptIDs.prefix(5).joined(separator: ", "))")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if let error = env.curriculumUpdateError {
+                Text(error).font(.caption).foregroundStyle(Palette.danger)
+            }
+            if env.curriculum.origin == .downloaded {
+                Button("Revert to the bundled syllabus", role: .destructive) {
+                    env.revertToBundledCurriculum()
+                }
+            }
+        } header: {
+            Text("Curriculum")
+        } footer: {
+            Text("The syllabus is published separately from the app, so new concepts arrive without an App Store update. A downloaded syllabus is only adopted if it is newer than the bundled one and passes validation — a broken prerequisite graph would lock concepts permanently, so it is checked before it is applied, not after. Your progress is keyed by concept, so it survives an update.")
+        }
+    }
+
     private var docsSection: some View {
         Section {
             HStack {
@@ -189,6 +233,10 @@ struct SettingsView: View {
                     githubToken = ""
                 }
             }
+            Toggle("Discover new pages", isOn: Binding(
+                get: { env.includeDiscoveredSources },
+                set: { env.includeDiscoveredSources = $0 }
+            ))
             Button(syncing ? "Syncing…" : "Sync documentation now") {
                 syncing = true
                 Task {
@@ -200,9 +248,13 @@ struct SettingsView: View {
 
             if let report = env.lastSyncReport {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(report.fetched) fetched · \(report.unchanged) unchanged · \(report.skipped) fresh · \(report.failed) failed")
+                    Text("\(Format.count(report.fetched)) fetched · \(Format.count(report.unchanged)) unchanged · \(Format.count(report.skipped)) fresh · \(Format.count(report.failed)) failed")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if report.discovered > 0 {
+                        Text("\(Format.count(report.discovered)) pages in the published documentation indexes")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                     ForEach(Array(report.messages.enumerated()), id: \.offset) { _, message in
                         Text(message).font(.caption2).foregroundStyle(.secondary)
                     }
@@ -211,7 +263,7 @@ struct SettingsView: View {
         } header: {
             Text("Source material")
         } footer: {
-            Text("There is no curriculum API, so the app fetches Anthropic docs, the courses and cookbook repos, and the AWS Bedrock guide into a local corpus, then retrieves the relevant passages when writing a lesson. Conditional requests mean a refresh is mostly cheap. A GitHub token raises the anonymous 60-requests-per-hour limit; it is optional.")
+            Text("There is no curriculum API, so the app builds its own corpus. Curated sources come from the syllabus; discovery additionally crawls the llms.txt indexes both Anthropic documentation sites publish and the AWS Bedrock sitemap, so pages written after the syllabus was are still found. Anthropic docs are fetched as Markdown rather than scraped HTML. Conditional requests keep refreshes cheap. A GitHub token raises the anonymous 60-requests-per-hour limit; it is optional.")
         }
     }
 

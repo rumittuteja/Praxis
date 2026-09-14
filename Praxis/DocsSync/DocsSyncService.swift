@@ -9,6 +9,7 @@ struct FetchedDocument: Sendable {
     var etag: String?
     var lastModified: String?
     var conceptTags: [String]
+    var isDiscovered: Bool = false
 }
 
 /// Outcome of one sync run, shown in Settings.
@@ -17,6 +18,8 @@ struct SyncReport: Sendable {
     var unchanged: Int = 0
     var failed: Int = 0
     var skipped: Int = 0
+    /// Pages found in the published documentation indexes this run.
+    var discovered: Int = 0
     var messages: [String] = []
     var finishedAt = Date()
 
@@ -80,14 +83,64 @@ struct DocsSyncService: Sendable {
         }
     }
 
+    /// Hosts that serve a clean Markdown twin at `<page>.md`.
+    ///
+    /// Worth preferring: the Markdown is the same content without navigation,
+    /// scripts or markup, so the model gets better text and `TextExtraction`
+    /// does not have to guess which parts of a page were prose.
+    private static let markdownHosts: Set<String> = [
+        "docs.claude.com", "code.claude.com", "platform.claude.com"
+    ]
+
+    /// The `.md` twin of a documentation URL, when the host publishes one.
+    static func markdownVariant(of urlString: String) -> URL? {
+        guard let url = URL(string: urlString),
+              let host = url.host,
+              markdownHosts.contains(host),
+              !url.path.hasSuffix(".md"),
+              !url.path.isEmpty, url.path != "/"
+        else { return nil }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.path = url.path.hasSuffix("/")
+            ? String(url.path.dropLast()) + ".md"
+            : url.path + ".md"
+        return components?.url
+    }
+
     private func fetchWebPage(
         _ ref: SourceRef,
         conceptIDs: [String],
         existing: (etag: String?, lastModified: String?)?
     ) async throws -> FetchedDocument? {
+        // Try the Markdown twin first; fall back to the HTML page if the host
+        // does not have one for this path.
+        if let markdown = Self.markdownVariant(of: ref.url),
+           let document = try? await fetchOne(
+               url: markdown, canonicalURL: ref.url, ref: ref,
+               conceptIDs: conceptIDs, existing: existing
+           ) {
+            return document
+        }
         guard let url = URL(string: ref.url) else { return nil }
+        return try await fetchOne(
+            url: url, canonicalURL: ref.url, ref: ref,
+            conceptIDs: conceptIDs, existing: existing
+        )
+    }
+
+    /// Fetch one URL and turn it into a document.
+    ///
+    /// `canonicalURL` is what gets stored and cited, so a page fetched via its
+    /// `.md` twin is still attributed to the human-readable page.
+    private func fetchOne(
+        url: URL,
+        canonicalURL: String,
+        ref: SourceRef,
+        conceptIDs: [String],
+        existing: (etag: String?, lastModified: String?)?
+    ) async throws -> FetchedDocument? {
         var request = URLRequest(url: url)
-        request.setValue("text/html,text/markdown,text/plain", forHTTPHeaderField: "Accept")
+        request.setValue("text/markdown,text/html,text/plain", forHTTPHeaderField: "Accept")
         if let etag = existing?.etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
         if let modified = existing?.lastModified {
             request.setValue(modified, forHTTPHeaderField: "If-Modified-Since")
@@ -109,14 +162,15 @@ struct DocsSyncService: Sendable {
             : TextExtraction.fromMarkdown(body)
 
         guard text.count > 200 else {
-            throw LLMError.malformedResponse("\(ref.url) yielded almost no text.")
+            throw LLMError.malformedResponse("\(canonicalURL) yielded almost no text.")
         }
 
-        let title = TextExtraction.htmlTitle(body)
+        let title = TextExtraction.frontMatterTitle(body)
+            ?? TextExtraction.htmlTitle(body)
             ?? TextExtraction.inferTitle(from: text, fallback: ref.title)
 
         return FetchedDocument(
-            url: ref.url,
+            url: canonicalURL,
             source: ref.kind,
             title: title,
             content: text,
@@ -124,6 +178,22 @@ struct DocsSyncService: Sendable {
             lastModified: http.value(forHTTPHeaderField: "Last-Modified"),
             conceptTags: conceptIDs
         )
+    }
+
+    /// Fetch a page found by `SourceDiscovery`. Same path as a curated source;
+    /// the only difference is where the URL came from.
+    func fetch(
+        discovered page: DiscoveredPage,
+        conceptIDs: [String],
+        existing: (etag: String?, lastModified: String?)?
+    ) async throws -> FetchedDocument? {
+        var document = try await fetch(
+            SourceRef(title: page.title, url: page.url, kind: page.kind),
+            conceptIDs: conceptIDs,
+            existing: existing
+        )
+        document?.isDiscovered = true
+        return document
     }
 
     // MARK: - GitHub repositories

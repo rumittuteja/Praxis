@@ -11,7 +11,6 @@ import SwiftData
 @Observable
 final class AppEnvironment {
 
-    let curriculum: CurriculumStore
     let credentials: CredentialStore
     let providers: ProviderFactory
     let requestLog: RequestLog
@@ -28,10 +27,21 @@ final class AppEnvironment {
     var syncInProgress = false
     var lastSyncReport: SyncReport?
 
+    /// Replaced when a newer syllabus is downloaded and adopted.
+    private(set) var curriculum: CurriculumStore
+    var lastCurriculumUpdate: CurriculumUpdate?
+    var curriculumCheckInProgress = false
+    /// Set when a curriculum check fails, so Settings can say why.
+    var curriculumUpdateError: String?
+
+    /// Discovered pages are fetched once per sync run and reused, since the
+    /// indexes are large and change slowly.
+    var includeDiscoveredSources = true
+
     private static let activeLearnerKey = "praxis.activeLearnerID"
 
     init(
-        curriculum: CurriculumStore = .loadFromBundle(),
+        curriculum: CurriculumStore = .load(),
         credentials: CredentialStore = CredentialStore()
     ) {
         self.curriculum = curriculum
@@ -83,6 +93,47 @@ final class AppEnvironment {
         ))
     }
 
+    // MARK: Curriculum updates
+
+    /// Check for a newer published syllabus and adopt it if there is one.
+    ///
+    /// Adopting swaps `curriculum` in place. Progress is keyed by concept id,
+    /// so a learner keeps their history across an update: concepts that still
+    /// exist carry on, new ones appear as available, and rows for removed
+    /// concepts sit dormant rather than being deleted.
+    @discardableResult
+    func checkForCurriculumUpdate() async -> CurriculumUpdate? {
+        guard !curriculumCheckInProgress else { return nil }
+        curriculumCheckInProgress = true
+        curriculumUpdateError = nil
+        defer { curriculumCheckInProgress = false }
+
+        do {
+            guard let update = try await CurriculumUpdater().checkForUpdate(current: curriculum) else {
+                return nil
+            }
+            if let adopted = CurriculumUpdater.cachedStore() {
+                curriculum = adopted
+            }
+            lastCurriculumUpdate = update
+            return update
+        } catch let error as LLMError {
+            curriculumUpdateError = error.errorDescription
+            return nil
+        } catch {
+            curriculumUpdateError = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Drop a downloaded syllabus and go back to the bundled one.
+    func revertToBundledCurriculum() {
+        CurriculumUpdater.clearCache()
+        curriculum = .loadFromBundle()
+        lastCurriculumUpdate = nil
+        curriculumUpdateError = nil
+    }
+
     // MARK: Docs sync
 
     /// Refresh the shared document corpus.
@@ -120,6 +171,39 @@ final class AppEnvironment {
                 report.failed += 1
                 if report.messages.count < 8 {
                     report.messages.append("\(entry.ref.title): \(error.localizedDescription)")
+                }
+            }
+        }
+
+        // Curated sources are authoritative and go first; discovered pages
+        // fill the gaps the hand-written list cannot know about, such as
+        // documentation published after the syllabus was written.
+        if includeDiscoveredSources {
+            let discovery = SourceDiscovery()
+            let pages = await discovery.discoverAll()
+            report.discovered = pages.count
+
+            for entry in discovery.plan(pages: pages, store: curriculum) {
+                let existing = repository.snapshot(url: entry.page.url)
+                if !force, let existing, !existing.isStale {
+                    report.skipped += 1
+                    continue
+                }
+                do {
+                    let validators = existing.map { (etag: $0.etag, lastModified: $0.lastModified) }
+                    if let document = try await service.fetch(
+                        discovered: entry.page, conceptIDs: entry.conceptIDs, existing: validators
+                    ) {
+                        repository.upsert(document)
+                        report.fetched += 1
+                    } else {
+                        repository.markFresh(url: entry.page.url)
+                        report.unchanged += 1
+                    }
+                } catch {
+                    // A discovered page failing is routine — it was a guess, not
+                    // a curated choice — so it is counted but not reported.
+                    report.failed += 1
                 }
             }
         }

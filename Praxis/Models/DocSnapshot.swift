@@ -37,8 +37,12 @@ final class DocSnapshot {
     var etag: String?
     var lastModified: String?
     var fetchedAt: Date
-    /// Concept IDs this document is relevant to, from the source catalog.
+    /// Concept IDs this document is relevant to.
     var conceptTags: [String]
+    /// True when the page was found by crawling a documentation index rather
+    /// than named by the syllabus. Retrieval ranks these below curated sources:
+    /// a keyword match is a guess, a hand-picked source is a judgement.
+    var isDiscovered: Bool = false
     /// Rough token estimate (~4 chars/token) used to budget the context we
     /// spend on retrieval before falling back to `count_tokens`.
     var approximateTokens: Int
@@ -57,7 +61,8 @@ final class DocSnapshot {
         content: String,
         etag: String?,
         lastModified: String?,
-        conceptTags: [String]
+        conceptTags: [String],
+        isDiscovered: Bool = false
     ) {
         self.url = url
         self.sourceRaw = source.rawValue
@@ -67,6 +72,7 @@ final class DocSnapshot {
         self.lastModified = lastModified
         self.fetchedAt = Date()
         self.conceptTags = conceptTags
+        self.isDiscovered = isDiscovered
         self.approximateTokens = max(1, content.count / 4)
     }
 }

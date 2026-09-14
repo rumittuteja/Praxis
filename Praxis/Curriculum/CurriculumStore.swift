@@ -12,6 +12,29 @@ struct CurriculumStore: Sendable {
 
     static let resourceName = "curriculum"
 
+    /// Where this store's contents came from, for display in Settings.
+    enum Origin: String, Sendable {
+        case bundle
+        case downloaded
+    }
+
+    private(set) var origin: Origin = .bundle
+
+    /// The syllabus to use: a downloaded one if it is present, valid and newer
+    /// than the bundled copy, otherwise the bundle.
+    ///
+    /// The bundled copy is the floor and is never removed, so a bad download,
+    /// a corrupt cache or a first launch offline all degrade to a working app
+    /// rather than an empty one.
+    static func load(_ bundle: Bundle = .main) -> CurriculumStore {
+        let bundled = loadFromBundle(bundle)
+        guard var cached = CurriculumUpdater.cachedStore(),
+              cached.curriculum.version > bundled.curriculum.version
+        else { return bundled }
+        cached.origin = .downloaded
+        return cached
+    }
+
     /// Loads from the app bundle. Traps on failure by design — a missing or
     /// malformed curriculum is a build error, not a runtime condition to
     /// degrade around, and failing loudly in development beats an empty app.

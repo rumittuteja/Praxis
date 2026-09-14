@@ -190,6 +190,7 @@ struct LearningRepository {
             existing.lastModified = document.lastModified
             existing.fetchedAt = Date()
             existing.conceptTags = document.conceptTags
+            existing.isDiscovered = document.isDiscovered
             existing.approximateTokens = max(1, document.content.count / 4)
         } else {
             context.insert(DocSnapshot(
@@ -199,7 +200,8 @@ struct LearningRepository {
                 content: document.content,
                 etag: document.etag,
                 lastModified: document.lastModified,
-                conceptTags: document.conceptTags
+                conceptTags: document.conceptTags,
+                isDiscovered: document.isDiscovered
             ))
         }
     }

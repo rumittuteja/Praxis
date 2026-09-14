@@ -29,8 +29,34 @@ enum TextExtraction {
     }
 
     static func fromMarkdown(_ markdown: String) -> String {
-        // Markdown is already close to what we want; just bound the size.
-        normalizeWhitespace(markdown)
+        // Markdown is already close to what we want; strip any YAML front
+        // matter (the Anthropic docs' .md twins open with one) and bound size.
+        normalizeWhitespace(strippingFrontMatter(markdown))
+    }
+
+    /// Remove a leading `---` … `---` YAML block.
+    static func strippingFrontMatter(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("---") else { return text }
+        let body = trimmed.dropFirst(3)
+        guard let close = body.range(of: "\n---") else { return text }
+        return String(body[close.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The `title:` field from YAML front matter, if present. More reliable
+    /// than inferring from the first heading.
+    static func frontMatterTitle(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("---") else { return nil }
+        let body = trimmed.dropFirst(3)
+        guard let close = body.range(of: "\n---") else { return nil }
+        for line in body[..<close.lowerBound].components(separatedBy: .newlines) {
+            let parts = line.split(separator: ":", maxSplits: 1).map(String.init)
+            guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == "title" else { continue }
+            let value = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
+            return value.isEmpty ? nil : String(value.prefix(120))
+        }
+        return nil
     }
 
     /// Pull the prose and code out of a Jupyter notebook.

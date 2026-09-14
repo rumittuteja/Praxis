@@ -98,7 +98,11 @@ struct SessionPlanner: Sendable {
     /// mastery, so shakier material surfaces earlier in the warm-up.
     private func dueConcepts(_ input: PlannerInput) -> [String] {
         input.progress
-            .filter { _, state in
+            .filter { id, state in
+                // A downloaded curriculum can drop a concept. The progress row
+                // survives (in case it comes back), but it must not occupy a
+                // warm-up slot or the day's time budget.
+                guard store.concept(id) != nil else { return false }
                 guard state.state == .learning || state.state == .review || state.state == .mastered
                 else { return false }
                 guard let dueDate = state.dueDate else { return true }
@@ -150,7 +154,9 @@ struct SessionPlanner: Sendable {
 
         let older = input.progress
             .filter { id, state in
-                id != newConceptID && (state.state == .learning || state.state == .review || state.state == .mastered)
+                store.concept(id) != nil
+                    && id != newConceptID
+                    && (state.state == .learning || state.state == .review || state.state == .mastered)
             }
             .sorted { lhs, rhs in
                 let lhsRisk = SpacedRepetition.retrievability(lhs.value, now: input.now)
@@ -171,7 +177,7 @@ struct SessionPlanner: Sendable {
             return newConceptID
         }
         return input.progress
-            .filter { $0.value.state == .learning }
+            .filter { store.concept($0.key) != nil && $0.value.state == .learning }
             .min { $0.value.masteryScore < $1.value.masteryScore }?
             .key
     }
