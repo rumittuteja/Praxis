@@ -24,6 +24,7 @@ to do that gets graded against a rubric.
 - [Privacy and data](#privacy-and-data)
 - [Architecture](#architecture)
 - [Theming](#theming)
+- [Localization](#localization)
 - [Troubleshooting](#troubleshooting)
 - [Known gaps](#known-gaps)
 
@@ -700,6 +701,74 @@ follow the system setting and cannot be overridden in-app, and there is no
 user-selectable palette. Making the theme switchable at runtime would mean
 replacing the static palette lookups with an environment-injected theme object —
 contained, but it touches every view.
+
+## Localization
+
+The app is internationalization-ready: the code is prepared, the string catalog
+is wired, and no language has been translated yet.
+
+### Adding a language
+
+1. In Xcode, select the project → **Info** → **Localizations** → **+**, and pick
+   a language.
+2. Build once (**⌘B**). Xcode extracts every localizable string into
+   `Praxis/Resources/Localizable.xcstrings`. The catalog is checked in empty on
+   purpose — extraction is a build step, not something to hand-maintain.
+3. Open the catalog and translate. Strings carry translator comments explaining
+   what each one is and what the placeholders mean.
+
+### What is and isn't translated
+
+Everything a learner reads is localizable: SwiftUI `Text` literals are picked up
+automatically, and the strings that live in Swift enums — session step names,
+confidence and recall labels, calibration readings, every error message, model
+picker guidance — go through `String(localized:)` with comments.
+
+Deliberately **not** translated, because translating them would be a bug:
+
+- SF Symbol identifiers, which are icon names rather than text
+- Product names: *Anthropic API*, *Amazon Bedrock*, model display names
+- Endpoint hostnames
+- Everything in `Prompts` — those are instructions to the model, not UI. They
+  also have to stay byte-stable for prompt caching to work.
+
+### Plurals and numbers
+
+Plural forms use automatic grammar agreement — `^[\(count) concept](inflect: true)`
+— rather than an English `count == 1 ? "" : "s"` ternary, which is wrong in most
+languages and badly wrong in ones with more than two plural forms.
+
+All user-facing numbers go through `Format` in
+`Praxis/DesignSystem/Formatting.swift`, so decimal separators, grouping, percent
+placement and currency symbol position follow the locale. Costs stay in USD —
+that is what both providers bill in — but format per locale.
+
+One deliberate exception: numbers inside prompts are *not* locale-formatted.
+Those are read by the model, and a German device must not send `50 %` where an
+American one sends `50%`.
+
+### Right-to-left
+
+Layout uses leading/trailing throughout, so it mirrors. One place needed a fix:
+the calibration bar on the Progress screen positioned itself with absolute
+`offset(x:)`, which SwiftUI does not flip, so it drew on the wrong side of the
+axis while its labels mirrored correctly. It is now centre-anchored and mirrors
+explicitly.
+
+### Lessons in your language
+
+Generated content follows the device language too. When the locale is not
+English, the tutor is told to write the lesson, quiz and feedback in that
+language — with an explicit carve-out that code, API parameter names, model
+identifiers, headers, commands and URLs stay in English. Those are exact strings
+the learner will type, and a translated one is a wrong one.
+
+That instruction sits *after* the prompt cache breakpoint, so supporting other
+languages costs nothing in cache hit rate.
+
+**This part is untested against real output.** The instruction is sound, but
+whether Opus 5 writes good pedagogical German or Hindi for this material is an
+empirical question that needs a native speaker to judge.
 
 ## Troubleshooting
 

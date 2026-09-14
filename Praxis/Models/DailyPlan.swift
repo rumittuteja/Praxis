@@ -15,13 +15,20 @@ enum SessionStep: String, Codable, CaseIterable, Sendable {
     /// Short written reflection — self-explanation aids transfer.
     case reflection
 
+    /// Localized. `symbol` below is deliberately not — those are SF Symbol
+    /// identifiers, not text, and must never be translated.
     var title: String {
         switch self {
-        case .warmup:     return "Warm-up"
-        case .lesson:     return "Today's concept"
-        case .quiz:       return "Check yourself"
-        case .task:       return "Hands-on"
-        case .reflection: return "Reflect"
+        case .warmup:
+            return String(localized: "Warm-up", comment: "Session step: retrieval practice on due concepts")
+        case .lesson:
+            return String(localized: "Today's concept", comment: "Session step: the new lesson")
+        case .quiz:
+            return String(localized: "Check yourself", comment: "Session step: the quiz")
+        case .task:
+            return String(localized: "Hands-on", comment: "Session step: the practical task")
+        case .reflection:
+            return String(localized: "Reflect", comment: "Session step: written reflection")
         }
     }
 

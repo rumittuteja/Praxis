@@ -107,10 +107,18 @@ struct MasteryModel: Sendable {
     var calibrationDescription: String {
         let bias = calibrationBias
         switch bias {
-        case ..<(-0.2):  return "You underrate yourself — you're right more often than you expect."
-        case (-0.2)..<0.1: return "Well calibrated. Your confidence tracks your accuracy."
-        case 0.1..<0.25: return "Slightly overconfident on a few topics."
-        default:         return "Overconfident: you're often certain on answers you get wrong."
+        case ..<(-0.2):
+            return String(localized: "You underrate yourself — you're right more often than you expect.",
+                          comment: "Calibration reading: learner is underconfident")
+        case (-0.2)..<0.1:
+            return String(localized: "Well calibrated. Your confidence tracks your accuracy.",
+                          comment: "Calibration reading: confidence matches accuracy")
+        case 0.1..<0.25:
+            return String(localized: "Slightly overconfident on a few topics.",
+                          comment: "Calibration reading: mildly overconfident")
+        default:
+            return String(localized: "Overconfident: you're often certain on answers you get wrong.",
+                          comment: "Calibration reading: strongly overconfident")
         }
     }
 

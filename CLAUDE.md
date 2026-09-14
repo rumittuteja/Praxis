@@ -154,6 +154,29 @@ and it is worth keeping it that way — a re-skin should stay a one-file edit.
   so that scaling text later does not resize icons.
 - Sizes are **not** Dynamic Type aware — see Known gaps.
 
+## Localization
+
+Internationalization-ready, no languages translated yet. The catalog is
+`Praxis/Resources/Localizable.xcstrings`, checked in empty — Xcode extracts into
+it at build time, so do not hand-maintain it.
+
+- New user-facing text goes in a SwiftUI `Text("literal")` (auto-extracted) or
+  `String(localized:comment:)`. Always write the comment; a translator cannot
+  see the call site.
+- **Never** wrap an SF Symbol name, a product name, a hostname, or anything in
+  `Prompts` in `String(localized:)`. Prompts in particular are model-facing and
+  must stay byte-stable for caching.
+- Plurals use `^[\(count) thing](inflect: true)`, never an English ternary.
+- All UI numbers go through `Format` (`DesignSystem/Formatting.swift`), which
+  takes an injectable `locale` so it can be tested against a pinned one.
+  Numbers inside prompts stay locale-invariant on purpose — there is a test
+  asserting a German device still sends `50%`.
+- `offset(x:)` does not mirror for RTL. The calibration bar in
+  `ProgressMapView` multiplies by a layout-direction sign; do the same for any
+  new absolute positioning, or use leading/trailing and let SwiftUI mirror.
+- `Prompts.languageInstruction(for:)` makes generated lessons follow the device
+  language. It returns nil for English, and lands after the cache breakpoint.
+
 ## Conventions worth preserving
 
 - **Lessons cite only supplied URLs.** `citedSourceURLs` is validated against the

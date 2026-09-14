@@ -78,7 +78,7 @@ struct TaskView: View {
                                     .font(Typeface.semibold(14))
                                     .foregroundStyle(Palette.ink(scheme))
                                 Spacer()
-                                Text("\(Int((criterion.weight * 100).rounded()))%")
+                                Text(Format.percent(criterion.weight))
                                     .font(Typeface.mono(11))
                                     .foregroundStyle(Palette.inkTertiary(scheme))
                             }
@@ -143,7 +143,7 @@ struct TaskView: View {
                         .font(Typeface.semibold(18))
                         .foregroundStyle(task.passed ? Palette.success : Palette.warning)
                     Spacer()
-                    Text("\(Int((task.overallScore * 100).rounded()))%")
+                    Text(Format.percent(task.overallScore))
                         .font(Typeface.display(24))
                         .foregroundStyle(Palette.ink(scheme))
                 }
@@ -163,7 +163,7 @@ struct TaskView: View {
                                     .font(Typeface.semibold(14))
                                     .foregroundStyle(Palette.ink(scheme))
                                 Spacer()
-                                Text("\(Int((score.score * 100).rounded()))%")
+                                Text(Format.percent(score.score))
                                     .font(Typeface.mono(12))
                                     .foregroundStyle(Palette.inkSecondary(scheme))
                             }

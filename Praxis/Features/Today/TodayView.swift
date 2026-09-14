@@ -136,12 +136,16 @@ struct TodayView: View {
     private func subtitle(for step: SessionStep, plan: DailyPlan) -> String {
         switch step {
         case .warmup:
+            // Inflection is left to the string catalog rather than an
+            // English-only ternary — many languages have more than two forms.
             let count = plan.reviewConceptIDs.count
-            return "\(count) concept\(count == 1 ? "" : "s") due for recall"
+            return String(localized: "^[\(count) concept](inflect: true) due for recall",
+                          comment: "Warm-up subtitle: how many concepts are scheduled for review")
         case .lesson:
             return plan.newConceptID.flatMap { env.curriculum.concept($0)?.title } ?? "New concept"
         case .quiz:
-            return "\(plan.quizConceptIDs.count) concepts, interleaved"
+            return String(localized: "^[\(plan.quizConceptIDs.count) concept](inflect: true), interleaved",
+                          comment: "Quiz subtitle: how many concepts the quiz mixes together")
         case .task:
             return plan.taskConceptID.flatMap { env.curriculum.concept($0)?.title } ?? "Hands-on work"
         case .reflection:

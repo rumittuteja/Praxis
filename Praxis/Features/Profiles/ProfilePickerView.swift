@@ -120,13 +120,18 @@ private struct ProfileRow: View {
 
                 if learner.currentStreak > 0 {
                     VStack(spacing: 2) {
-                        Text("\(learner.currentStreak)")
+                        Text(Format.count(learner.currentStreak))
                             .font(Typeface.semibold(18))
                             .foregroundStyle(Palette.accent)
-                        Text("day\(learner.currentStreak == 1 ? "" : "s")")
+                        Text("^[\(learner.currentStreak) day](inflect: true)")
                             .font(Typeface.nano(.regular))
                             .foregroundStyle(Palette.inkTertiary(scheme))
                     }
+                    .accessibilityElement()
+                    .accessibilityLabel(
+                        String(localized: "^[\(learner.currentStreak) day](inflect: true) streak",
+                               comment: "Accessibility label for the streak badge on a profile row")
+                    )
                 }
 
                 Image(systemName: "chevron.right")

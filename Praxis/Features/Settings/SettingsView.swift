@@ -79,6 +79,9 @@ struct SettingsView: View {
                     Text(entry.displayName).tag(entry.id)
                 }
             }
+            if let note = ModelCatalog.note(for: learner.anthropicModel, provider: .anthropic) {
+                Text(note).font(.caption).foregroundStyle(.secondary)
+            }
             Button("Save key") {
                 env.credentials.set(anthropicKey, for: .anthropicAPIKey)
                 anthropicKey = ""
@@ -127,6 +130,9 @@ struct SettingsView: View {
                 ForEach(ModelCatalog.bedrock) { entry in
                     Text(entry.displayName).tag(entry.id)
                 }
+            }
+            if let note = ModelCatalog.note(for: learner.bedrockModel, provider: .bedrock) {
+                Text(note).font(.caption).foregroundStyle(.secondary)
             }
 
             Button("Save credentials") {

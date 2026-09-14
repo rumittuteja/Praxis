@@ -25,10 +25,14 @@ enum RecallRating: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .again: return "Blank"
-        case .hard:  return "Shaky"
-        case .good:  return "Got it"
-        case .easy:  return "Easy"
+        case .again:
+            return String(localized: "Blank", comment: "Self-rated recall: nothing came back")
+        case .hard:
+            return String(localized: "Shaky", comment: "Self-rated recall: got the gist, missed the substance")
+        case .good:
+            return String(localized: "Got it", comment: "Self-rated recall: solid")
+        case .easy:
+            return String(localized: "Easy", comment: "Self-rated recall: immediate and complete")
         }
     }
 

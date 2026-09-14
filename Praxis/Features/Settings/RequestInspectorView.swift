@@ -48,14 +48,14 @@ struct RequestInspectorView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionHeader(title: "This run")
                 HStack(spacing: 18) {
-                    stat("\(env.requestLog.entries.count)", "calls")
-                    stat("\(usage.inputTokens + usage.cacheReadInputTokens)", "in")
-                    stat("\(usage.outputTokens)", "out")
-                    stat(String(format: "$%.3f", cost), "est.")
+                    stat(Format.count(env.requestLog.entries.count), "calls")
+                    stat(Format.count(usage.inputTokens + usage.cacheReadInputTokens), "in")
+                    stat(Format.count(usage.outputTokens), "out")
+                    stat(Format.usd(cost), "est.")
                 }
                 if usage.cacheHitRate > 0 {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Cache hit rate \(Int((usage.cacheHitRate * 100).rounded()))%")
+                        Text("Cache hit rate \(Format.percent(usage.cacheHitRate))")
                             .font(Typeface.body(13))
                             .foregroundStyle(Palette.inkSecondary(scheme))
                         MasteryBar(value: usage.cacheHitRate, tint: Palette.success, height: 4)
@@ -111,7 +111,7 @@ struct RequestInspectorView: View {
                         .foregroundStyle(Palette.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text("in \(entry.usage.inputTokens) · out \(entry.usage.outputTokens) · cache r/w \(entry.usage.cacheReadInputTokens)/\(entry.usage.cacheCreationInputTokens) · \(String(format: "%.1f", entry.latencySeconds))s · ~\(String(format: "$%.4f", entry.estimatedCostUSD))")
+                    Text("in \(entry.usage.inputTokens) · out \(entry.usage.outputTokens) · cache r/w \(entry.usage.cacheReadInputTokens)/\(entry.usage.cacheCreationInputTokens) · \(Format.seconds(entry.latencySeconds)) · \(Format.approximateUSD(entry.estimatedCostUSD))")
                         .font(Typeface.mono(11))
                         .foregroundStyle(Palette.inkTertiary(scheme))
                         .fixedSize(horizontal: false, vertical: true)

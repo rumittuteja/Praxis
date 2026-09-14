@@ -119,7 +119,7 @@ struct MasteryBar: View {
         .frame(height: height)
         .accessibilityElement()
         .accessibilityLabel("Mastery")
-        .accessibilityValue("\(Int((value * 100).rounded())) percent")
+        .accessibilityValue(Format.percent(value))
     }
 }
 

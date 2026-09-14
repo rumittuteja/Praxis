@@ -162,8 +162,10 @@ struct BedrockProvider: LLMProvider {
         if http.statusCode == 403 {
             return .http(
                 status: 403,
-                body: "Access denied. Check the IAM permissions on this key "
-                    + "(bedrock:InvokeModel) and that the model is enabled in \(http.url?.host ?? "this region")."
+                body: String(
+                    localized: "Access denied. Check the IAM permissions on this key (bedrock:InvokeModel) and that the model is enabled in \(http.url?.host ?? "this region").",
+                    comment: "Bedrock 403. Placeholder is the endpoint host, or a fallback phrase."
+                )
             )
         }
         return .http(status: http.statusCode, body: body)

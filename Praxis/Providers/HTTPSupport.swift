@@ -35,7 +35,8 @@ enum HTTPSupport {
             return .rateLimited(retryAfter: retryAfter)
         case 401, 403:
             return .http(status: response.statusCode, body: body.isEmpty
-                ? "Authentication failed. Check the credentials in Settings."
+                ? String(localized: "Authentication failed. Check the credentials in Settings.",
+                         comment: "401 or 403 response with an empty body")
                 : body)
         default:
             return .http(status: response.statusCode, body: body)

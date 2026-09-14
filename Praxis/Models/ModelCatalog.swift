@@ -22,23 +22,35 @@ enum ModelCatalog {
     static let defaultUtilityModel = "claude-haiku-4-5"
     static let defaultUtilityModelBedrock = "anthropic.claude-haiku-4-5"
 
+    // Model names are product names and stay untranslated; the notes are
+    // guidance for the learner and are localized.
     static let anthropic: [Entry] = [
         Entry(id: "claude-opus-5", displayName: "Opus 5",
-              note: "Best reasoning. Default for lessons and grading."),
+              note: String(localized: "Best reasoning. The default for lessons and grading.",
+                           comment: "Guidance next to a model in the picker")),
         Entry(id: "claude-sonnet-5", displayName: "Sonnet 5",
-              note: "Cheaper, still strong. Good for daily use at volume."),
+              note: String(localized: "Cheaper, still strong. Good for daily use at volume.",
+                           comment: "Guidance next to a model in the picker")),
         Entry(id: "claude-haiku-4-5", displayName: "Haiku 4.5",
-              note: "Fastest and cheapest. Used for quiz generation.")
+              note: String(localized: "Fastest and cheapest. Already used for quiz generation.",
+                           comment: "Guidance next to a model in the picker"))
     ]
 
     static let bedrock: [Entry] = [
         Entry(id: "anthropic.claude-opus-5", displayName: "Opus 5 (Bedrock)",
-              note: "Note the anthropic. prefix — Bedrock IDs differ from first-party."),
+              note: String(localized: "Note the anthropic. prefix — Bedrock model IDs differ from first-party ones.",
+                           comment: "Guidance next to a Bedrock model. Keep 'anthropic.' verbatim.")),
         Entry(id: "anthropic.claude-sonnet-5", displayName: "Sonnet 5 (Bedrock)",
-              note: "Cheaper Bedrock option."),
+              note: String(localized: "Cheaper Bedrock option.",
+                           comment: "Guidance next to a Bedrock model")),
         Entry(id: "anthropic.claude-haiku-4-5", displayName: "Haiku 4.5 (Bedrock)",
-              note: "Fastest Bedrock option.")
+              note: String(localized: "Fastest Bedrock option.",
+                           comment: "Guidance next to a Bedrock model"))
     ]
+
+    static func note(for modelID: String, provider: ProviderKind) -> String? {
+        entries(for: provider).first { $0.id == modelID }?.note
+    }
 
     static func entries(for provider: ProviderKind) -> [Entry] {
         switch provider {

@@ -24,10 +24,14 @@ enum ConfidenceLevel: Int, Codable, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .guessing:   return "Guessing"
-        case .unsure:     return "Unsure"
-        case .fairlySure: return "Fairly sure"
-        case .certain:    return "Certain"
+        case .guessing:
+            return String(localized: "Guessing", comment: "Confidence before an answer is revealed: no idea")
+        case .unsure:
+            return String(localized: "Unsure", comment: "Confidence before an answer is revealed: leaning one way")
+        case .fairlySure:
+            return String(localized: "Fairly sure", comment: "Confidence before an answer is revealed: reasonably confident")
+        case .certain:
+            return String(localized: "Certain", comment: "Confidence before an answer is revealed: completely sure")
         }
     }
 

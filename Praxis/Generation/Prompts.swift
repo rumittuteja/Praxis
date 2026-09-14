@@ -77,7 +77,15 @@ enum Prompts {
 
     // MARK: - Learner and concept context
 
-    static func learnerBrief(_ learner: Learner, mastery: Double, calibration: String) -> String {
+    static func learnerBrief(
+        _ learner: Learner,
+        mastery: Double,
+        calibration: String,
+        locale: Locale = .current
+    ) -> String {
+        // Percentages here are deliberately NOT locale-formatted: this string
+        // is read by the model, not the learner, and must stay stable across
+        // devices. Locale-aware formatting belongs in `Format`, for the UI.
         var lines = [
             "## This learner",
             "Name: \(learner.name)",
@@ -88,7 +96,34 @@ enum Prompts {
         if !prior.isEmpty {
             lines.append("They describe their background as: \(prior)")
         }
+        if let instruction = languageInstruction(for: locale) {
+            lines.append(instruction)
+        }
         return lines.joined(separator: "\n")
+    }
+
+    /// Tells the tutor which language to write in, when that is not English.
+    ///
+    /// This sits in the *variable* half of the system prompt, after the cache
+    /// breakpoint, so adding it costs nothing in cache hit rate. Returns nil
+    /// for English so English prompts are unchanged.
+    ///
+    /// The carve-out matters as much as the instruction: translating a
+    /// parameter name or a model ID would teach the learner a string that does
+    /// not exist.
+    static func languageInstruction(for locale: Locale) -> String? {
+        guard let code = locale.language.languageCode?.identifier, code != "en" else { return nil }
+        // Name the language in English — the instruction is for the model.
+        let name = Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+        return """
+        Write this lesson in \(name). Prose, headings, takeaways, questions and \
+        feedback all in \(name).
+
+        Do NOT translate: code, API parameter and field names, model identifiers, \
+        HTTP headers, CLI commands, error strings, or URLs. Those are exact \
+        strings the learner will type, and a translated one is a wrong one. \
+        Explain them in \(name); leave the identifiers in English.
+        """
     }
 
     static func conceptBrief(_ concept: Concept, trackTitle: String) -> String {

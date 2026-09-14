@@ -7,6 +7,7 @@ struct ProgressMapView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.layoutDirection) private var layoutDirection
 
     let learner: Learner
 
@@ -87,24 +88,32 @@ struct ProgressMapView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 // Centre line at zero, bar extending either side.
+                //
+                // Anchored to .center and mirrored explicitly: `offset(x:)` is
+                // an absolute displacement that SwiftUI does not flip for
+                // right-to-left layouts, so a leading-anchored version drew the
+                // bar on the wrong side of the axis in RTL while the labels
+                // below it (an HStack, which does mirror) swapped correctly.
                 GeometryReader { geo in
-                    let width = geo.size.width
                     let clamped = min(max(bias, -1), 1)
-                    let half = width / 2
-                    ZStack(alignment: .leading) {
+                    let half = geo.size.width / 2
+                    let mirror: CGFloat = layoutDirection == .rightToLeft ? -1 : 1
+                    ZStack(alignment: .center) {
                         Capsule().fill(Palette.hairline(scheme)).frame(height: 6)
                         Capsule()
                             .fill(bias > 0.1 ? Palette.overconfident : Palette.success)
                             .frame(width: abs(clamped) * half, height: 6)
-                            .offset(x: clamped >= 0 ? half : half - abs(clamped) * half)
+                            .offset(x: mirror * clamped * half / 2)
                         Rectangle()
                             .fill(Palette.inkTertiary(scheme))
                             .frame(width: 1, height: 12)
-                            .offset(x: half)
                     }
-                    .frame(height: 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(height: 12)
+                .accessibilityElement()
+                .accessibilityLabel(Text("Calibration"))
+                .accessibilityValue(Text(mastery.calibrationDescription))
 
                 HStack {
                     Text("underconfident").font(Typeface.nano(.regular))
@@ -136,7 +145,7 @@ struct ProgressMapView: View {
                                 .foregroundStyle(Palette.ink(scheme))
                                 .lineLimit(1)
                             Spacer(minLength: 8)
-                            Text("\(Int((item.retrievability * 100).rounded()))%")
+                            Text(Format.percent(item.retrievability))
                                 .font(Typeface.mono(12))
                                 .foregroundStyle(Palette.inkSecondary(scheme))
                         }

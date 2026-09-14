@@ -196,7 +196,7 @@ struct UsageFooter: View {
     var body: some View {
         Card(padding: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("\(model) · \(provider) · \(String(format: "%.1f", latency))s")
+                Text("\(model) · \(provider) · \(Format.seconds(latency))")
                     .font(Typeface.mono(11))
                     .foregroundStyle(Palette.inkTertiary(scheme))
                 Text("in \(usage.inputTokens) · out \(usage.outputTokens) · cache read \(usage.cacheReadInputTokens) · cache write \(usage.cacheCreationInputTokens)")

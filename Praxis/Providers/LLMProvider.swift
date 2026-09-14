@@ -19,31 +19,40 @@ enum LLMError: LocalizedError, Sendable {
         case .missingCredentials(let kind):
             switch kind {
             case .anthropic:
-                return "No Anthropic API key saved. Add one in Settings."
+                return String(localized: "No Anthropic API key saved. Add one in Settings.",
+                              comment: "Error shown when the Anthropic key is missing")
             case .bedrock:
-                return "No AWS credentials saved. Add an access key and secret in Settings."
+                return String(localized: "No AWS credentials saved. Add an access key and secret in Settings.",
+                              comment: "Error shown when AWS credentials are missing")
             }
         case .invalidConfiguration(let detail):
             return detail
         case .http(let status, let body):
-            return "The API returned \(status). \(Self.condense(body))"
+            return String(localized: "The API returned \(status). \(Self.condense(body))",
+                          comment: "HTTP error. First placeholder is a status code, second the server message")
         case .rateLimited(let retryAfter):
             if let retryAfter {
-                return "Rate limited. Try again in about \(Int(retryAfter.rounded())) seconds."
+                return String(localized: "Rate limited. Try again in about \(Int(retryAfter.rounded())) seconds.",
+                              comment: "Rate limit error with a retry delay in seconds")
             }
-            return "Rate limited. Wait a moment and try again."
+            return String(localized: "Rate limited. Wait a moment and try again.",
+                       comment: "Rate limit error with no retry delay given")
         case .refused(let category, let explanation):
-            let reason = explanation ?? "The model declined this request."
+            let reason = explanation ?? String(localized: "The model declined this request.",
+                                               comment: "Fallback when the model refuses without an explanation")
             if let category { return "\(reason) (category: \(category))" }
             return reason
         case .truncated:
-            return "The response hit the token cap before finishing."
+            return String(localized: "The response hit the token cap before finishing.",
+                          comment: "Response was truncated by max_tokens")
         case .malformedResponse(let detail):
-            return "Could not read the model's response. \(detail)"
+            return String(localized: "Could not read the model's response. \(detail)",
+                          comment: "Malformed response. Placeholder is a technical detail")
         case .transport(let detail):
-            return "Network problem: \(detail)"
+            return String(localized: "Network problem: \(detail)",
+                          comment: "Transport failure. Placeholder is the system error text")
         case .cancelled:
-            return "Cancelled."
+            return String(localized: "Cancelled.", comment: "The request was cancelled by the user")
         }
     }
 
