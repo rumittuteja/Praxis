@@ -205,6 +205,28 @@ concept. `SessionPlanner` filters ids the store does not know — keep that guar
 on any new code reading the progress map, or a removed concept silently eats a
 warm-up slot.
 
+## Learner-imported PDFs
+
+`LibraryDocument` rows point at files copied into
+`Application Support/UserLibrary`, managed by `DocumentStore`.
+
+- **Copy the bytes, never keep the picked URL.** Document-picker URLs are
+  security-scoped and may reference an undownloaded iCloud file; holding one
+  defeats the entire point of offline reading.
+- **Rows and files must be deleted together.** `LearningRepository.delete(_:)`
+  and `deleteLearner` both remove the file first. Deleting only rows strands
+  PDFs in Application Support with nothing pointing at them.
+- **Validate content, not the extension.** `importDocument` parses with
+  `PDFDocument` before creating a row, so a renamed file cannot become an entry
+  that will not open.
+- A row can outlive its file (a backup restored without the folder), so
+  `DocumentStore.fileExists(for:)` is checked before opening; the UI shows those
+  as missing rather than presenting an empty reader.
+- Application Support, not Caches — the system may evict Caches, and silently
+  deleting something imported for offline use is the one unacceptable failure.
+- `DocumentStore.directoryOverride` exists only so tests write to a temp
+  directory. Never set it in app code.
+
 ## Conventions worth preserving
 
 - **Lessons cite only supplied URLs.** `citedSourceURLs` is validated against the

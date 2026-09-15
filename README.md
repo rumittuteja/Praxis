@@ -424,6 +424,31 @@ Every lesson you have read, searchable by title, concept or takeaway. Lessons ar
 cached rather than regenerated, so reopening one costs nothing and shows you
 exactly the text you read the first time.
 
+The Library has two shelves, switched with the segmented control at the top.
+
+**Lessons** is everything the tutor has written for you.
+
+**My files** is PDFs you add yourself — papers, specs, printed notes. Tap **+**,
+pick one or more PDFs from anywhere the Files app can reach, and they appear in
+the list with a first-page thumbnail, page count and size. Tap one to read it in
+the app.
+
+Files are **copied onto the device**, not linked. That matters: the URL a
+document picker hands over is a temporary, security-scoped handle that can point
+at an iCloud Drive file which has not been downloaded, so a link would fail
+exactly when you are offline and wanted it most. Copying is what makes offline
+reading real. The cost is disk space, and the shelf shows the running total.
+
+The reader remembers where you stopped, so a 300-page specification reopens on
+the page you were on rather than at the cover. Long-press a file to delete it,
+or rename and share from the menu inside the reader.
+
+Only PDFs are accepted, and the file's actual content is parsed before it is
+accepted — a `.txt` renamed to `.pdf` is rejected at import rather than becoming
+a library entry that can never be opened. Password-protected and damaged files
+are refused with a reason. If you pick several at once and some fail, the good
+ones are still added and only the failures are reported.
+
 ### Settings
 
 Provider choice, credentials, model selection, region, daily goal, documentation

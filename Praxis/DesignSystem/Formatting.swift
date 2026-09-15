@@ -45,6 +45,11 @@ enum Format {
         )
     }
 
+    /// A file size: "2.4 MB", "2,4 MB", per locale.
+    static func fileSize(_ bytes: Int, locale: Locale = .autoupdatingCurrent) -> String {
+        bytes.formatted(.byteCount(style: .file).locale(locale))
+    }
+
     /// An approximate cost, marked as such.
     static func approximateUSD(_ value: Double, fractionDigits: Int = 4,
                                locale: Locale = .autoupdatingCurrent) -> String {

@@ -21,7 +21,8 @@ struct PraxisApp: App {
             TaskSubmission.self,
             DailyPlan.self,
             Reflection.self,
-            DocSnapshot.self
+            DocSnapshot.self,
+            LibraryDocument.self
         ])
         do {
             container = try ModelContainer(

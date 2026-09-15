@@ -41,6 +41,11 @@ struct LearningRepository {
     /// statistics.
     func deleteLearner(_ learner: Learner) {
         let id = learner.id
+        // Imported PDFs live on disk, not just in the store. Deleting only the
+        // rows would strand the files in Application Support with nothing left
+        // pointing at them, so the bytes go first.
+        DocumentStore.deleteFiles(documents(for: id))
+        try? context.delete(model: LibraryDocument.self, where: #Predicate { $0.learnerID == id })
         try? context.delete(model: ConceptProgress.self, where: #Predicate { $0.learnerID == id })
         try? context.delete(model: LessonRecord.self, where: #Predicate { $0.learnerID == id })
         try? context.delete(model: QuizAttempt.self, where: #Predicate { $0.learnerID == id })
@@ -165,6 +170,29 @@ struct LearningRepository {
         )
         descriptor.fetchLimit = limit
         return (try? context.fetch(descriptor)) ?? []
+    }
+
+    // MARK: - Learner-imported PDFs
+
+    func documents(for learnerID: UUID) -> [LibraryDocument] {
+        let descriptor = FetchDescriptor<LibraryDocument>(
+            predicate: #Predicate { $0.learnerID == learnerID },
+            sortBy: [SortDescriptor(\.addedAt, order: .reverse)]
+        )
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    func insert(_ document: LibraryDocument) {
+        context.insert(document)
+        save()
+    }
+
+    /// Remove the row and the file together. Doing one without the other
+    /// leaves either a dead entry or an unreachable file.
+    func delete(_ document: LibraryDocument) {
+        DocumentStore.deleteFile(for: document)
+        context.delete(document)
+        save()
     }
 
     // MARK: - Document corpus
