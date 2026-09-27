@@ -23,6 +23,7 @@ to do that gets graded against a rubric.
 - [Multiple profiles](#multiple-profiles)
 - [Privacy and data](#privacy-and-data)
 - [Keeping the curriculum current](#keeping-the-curriculum-current)
+- [Tech stack](#tech-stack)
 - [Architecture](#architecture)
 - [Theming](#theming)
 - [Localization](#localization)
@@ -705,6 +706,60 @@ current run. Nothing is persisted.
 
 ---
 
+## Tech stack
+
+Native iOS, and **no third-party dependencies at all** — no Swift Package
+Manager entries, no CocoaPods, no linked frameworks. Everything is Apple
+first-party.
+
+| | |
+|---|---|
+| Language | Swift, **5.0 language mode** |
+| Minimum OS | iOS 17.0 |
+| Devices | iPhone and iPad |
+| Build | Xcode 16+ (the project uses synchronized file groups) |
+| Dependencies | none |
+
+| Framework | Used for |
+|---|---|
+| **SwiftUI** | The entire UI. No UIKit view controllers. |
+| **SwiftData** | Local persistence — profiles, progress, lessons, quizzes, submissions, the document corpus |
+| **Observation** | `@Observable` app environment and session coordinator |
+| **Foundation** / `URLSession` | All networking, including SSE streaming |
+| **CryptoKit** | HMAC-SHA256 and SHA-256 for AWS SigV4 signing |
+| **Security** | Keychain storage for API keys and AWS credentials |
+| **PDFKit** | Rendering and paging learner-imported PDFs |
+| **UniformTypeIdentifiers** | Constraining the document picker to PDFs |
+| **UIKit** | Only where SwiftUI has no equivalent: `UIImage` for thumbnails, `PDFView` bridging |
+| **Swift Testing** | The test suite — `@Test` and `#expect`, not XCTest |
+
+### Why nothing is vendored
+
+Four things that would normally be a dependency are hand-written, each for a
+reason worth knowing before you replace them:
+
+- **AWS SigV4 signing.** There is no AWS SDK worth the weight for one signed
+  endpoint, and implementing it is itself part of the AWS curriculum. Tested
+  against AWS's published reference vectors.
+- **The `vnd.amazon.eventstream` decoder.** Bedrock's streaming framing. The
+  same reasoning, and the JSON inside the frames turned out to be identical to
+  the first-party SSE payloads, so one accumulator serves both providers.
+- **The SSE parser.** A dozen lines against `URLSession.bytes`.
+- **The Markdown renderer.** `AttributedString(markdown:)` handles inline
+  emphasis but flattens headings, lists and fenced code into one paragraph —
+  and generated lessons are full of all three.
+
+There is also no Anthropic SDK, because none exists for Swift. The app talks to
+the Messages API over plain HTTPS, which is what the official guidance
+recommends for unsupported languages.
+
+### Project file
+
+`Praxis.xcodeproj` uses Xcode 16 **synchronized file groups**, so adding or
+deleting a source file needs no project edit — anything under `Praxis/` and
+`PraxisTests/` is picked up automatically. `project.yml` is an XcodeGen
+fallback if the project file is ever damaged.
+
 ## Architecture
 
 For anyone modifying this.
@@ -741,7 +796,7 @@ toggle real rather than cosmetic.
 |---|---|---|
 | Endpoint | `api.anthropic.com/v1/messages` | `bedrock-runtime.<region>.amazonaws.com/model/<id>/invoke` |
 | Auth | `x-api-key` header | SigV4, service `bedrock` |
-| Model ID | `claude-opus-5`, in the body | `anthropic.claude-opus-5`, in the URL path |
+| Model ID | `claude-opus-5-5`, in the body | `anthropic.claude-opus-5-5`, in the URL path |
 | Version | `anthropic-version` header | `anthropic_version` body field |
 | Streaming | Server-sent events | Binary `vnd.amazon.eventstream` frames |
 
