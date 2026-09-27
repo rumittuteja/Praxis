@@ -194,6 +194,12 @@ Three layers, three update paths. Know which one a change belongs in.
   them below it (15 versus 50). Do not collapse that distinction.
 - **Lesson prose** — generated per session, current by construction.
 
+`AppEnvironment.refreshContentIfNeeded` runs both halves on launch, throttled to
+24 hours, and is the only reason any of this executes — both were behind
+Settings buttons and a learner would never have tapped them. `refreshContent`
+adopts the syllabus **before** syncing, deliberately: a concept whose sources
+are missing generates an ungrounded lesson. Keep that order if you touch it.
+
 `SourceDiscovery.relevanceThreshold` and the weights in `score(_:for:)` were
 tuned against the real 831-page indexes, not guessed. Id tokens and title words
 carry the score; key-idea words are capped at 3 because they are generic enough

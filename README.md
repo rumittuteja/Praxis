@@ -599,6 +599,14 @@ updates, and can revert to the bundled syllabus.
 Adding a concept is therefore: edit `curriculum.json`, bump `version`, run the
 curriculum tests, commit. Every install picks it up on its next check.
 
+**Checks happen on launch**, throttled to once a day. Both halves are
+conditional HTTP requests and neither spends model tokens, so this costs
+bandwidth rather than money. The order matters and is enforced: the syllabus is
+adopted first, then documents are fetched, because a concept whose sources are
+not in the corpus yet produces an ungrounded lesson — the worst possible
+introduction to something that just arrived. When an update brings in new
+concepts, Today says so once.
+
 ## Where content comes from
 
 There is no public "Claude tutorials API". The material lives across Anthropic's

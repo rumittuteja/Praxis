@@ -38,6 +38,12 @@ final class AppEnvironment {
     /// indexes are large and change slowly.
     var includeDiscoveredSources = true
 
+    /// Concepts that arrived in the most recent update and have not been
+    /// shown to the learner yet. Cleared when they acknowledge the notice.
+    var unacknowledgedNewConcepts: [String] = []
+
+    private static let lastRefreshKey = "praxis.lastContentRefresh"
+
     private static let activeLearnerKey = "praxis.activeLearnerID"
 
     init(
@@ -132,6 +138,42 @@ final class AppEnvironment {
         curriculum = .loadFromBundle()
         lastCurriculumUpdate = nil
         curriculumUpdateError = nil
+    }
+
+    /// Check for a newer syllabus and refresh the corpus, at most once a day.
+    ///
+    /// Called on launch. Without this the update machinery works perfectly and
+    /// never runs: both halves were behind Settings buttons, so a learner
+    /// would keep studying a stale syllabus indefinitely.
+    ///
+    /// Neither half spends model tokens — a conditional GET for the syllabus
+    /// and conditional GETs for documents — so running it unprompted costs
+    /// bandwidth, not money.
+    func refreshContentIfNeeded(repository: LearningRepository, now: Date = Date()) async {
+        let last = UserDefaults.standard.object(forKey: Self.lastRefreshKey) as? Date
+        if let last, now.timeIntervalSince(last) < 24 * 60 * 60 { return }
+        UserDefaults.standard.set(now, forKey: Self.lastRefreshKey)
+        await refreshContent(repository: repository)
+    }
+
+    /// The refresh itself, unthrottled. Settings calls this directly.
+    ///
+    /// Order matters: adopt the syllabus first, then sync. A new concept's
+    /// sources are not in the corpus until something fetches them, and a
+    /// lesson generated in that window is ungrounded — the worst possible
+    /// introduction to a concept that just arrived.
+    func refreshContent(repository: LearningRepository) async {
+        let update = await checkForCurriculumUpdate()
+        if let update, !update.newConceptIDs.isEmpty {
+            unacknowledgedNewConcepts = update.newConceptIDs
+        }
+        // force: false, so unchanged documents cost a 304 and only the new
+        // concepts' sources are actually downloaded.
+        _ = await syncDocs(repository: repository, force: false)
+    }
+
+    func acknowledgeNewConcepts() {
+        unacknowledgedNewConcepts = []
     }
 
     // MARK: Docs sync

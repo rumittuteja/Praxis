@@ -24,6 +24,12 @@ struct RootView: View {
         }
         .onAppear(perform: reconcileActiveLearner)
         .onChange(of: learners.count) { _, _ in reconcileActiveLearner() }
+        .task {
+            // Throttled to once a day internally, so this is cheap on every
+            // launch and does not block the UI — the session below renders
+            // from whatever syllabus is already loaded.
+            await env.refreshContentIfNeeded(repository: repository)
+        }
     }
 
     /// Keep the stored active-learner id honest: it can point at a profile that

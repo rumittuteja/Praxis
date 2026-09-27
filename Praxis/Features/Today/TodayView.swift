@@ -17,6 +17,7 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if let coordinator, let plan = coordinator.plan {
                         header(plan: plan)
+                        if !env.unacknowledgedNewConcepts.isEmpty { newConceptsNotice }
                         if !env.hasCredentials { credentialsPrompt }
                         stepList(coordinator: coordinator, plan: plan)
                         if plan.isComplete { completionCard(plan: plan) }
@@ -85,6 +86,38 @@ struct TodayView: View {
         let hour = Calendar.current.component(.hour, from: Date())
         let part = hour < 12 ? "Morning" : (hour < 18 ? "Afternoon" : "Evening")
         return "\(part), \(learner.name)"
+    }
+
+    /// Shown once after an update brings in concepts the learner has not seen.
+    ///
+    /// Without this the syllabus grows silently: the concepts are scheduled
+    /// correctly, but nothing signals that the course got bigger.
+    private var newConceptsNotice: some View {
+        let ids = env.unacknowledgedNewConcepts
+        let titles = ids.compactMap { env.curriculum.concept($0)?.title }
+        return Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Label(
+                    "^[\(ids.count) new concept](inflect: true) added",
+                    systemImage: "sparkles"
+                )
+                .font(Typeface.semibold(15))
+                .foregroundStyle(Palette.accent)
+
+                if !titles.isEmpty {
+                    Text(titles.prefix(4).joined(separator: " · "))
+                        .font(Typeface.body(13))
+                        .foregroundStyle(Palette.inkSecondary(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("They'll appear in your rotation once their prerequisites are met.")
+                    .font(Typeface.micro())
+                    .foregroundStyle(Palette.inkTertiary(scheme))
+
+                Button("Got it") { env.acknowledgeNewConcepts() }
+                    .buttonStyle(SecondaryButtonStyle())
+            }
+        }
     }
 
     private var credentialsPrompt: some View {

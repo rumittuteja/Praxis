@@ -185,7 +185,10 @@ struct SettingsView: View {
             Button(checkingCurriculum ? "Checking…" : "Check for new concepts") {
                 checkingCurriculum = true
                 Task {
-                    await env.checkForCurriculumUpdate()
+                    // Adopts a newer syllabus and then fetches the sources for
+                    // whatever it brought in. Checking without the sync leaves
+                    // new concepts with nothing to ground their lessons.
+                    await env.refreshContent(repository: repository)
                     checkingCurriculum = false
                 }
             }

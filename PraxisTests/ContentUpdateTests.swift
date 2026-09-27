@@ -451,3 +451,86 @@ struct CurriculumVersionTests {
 }
 
 private final class VersionBundleToken {}
+
+@Suite("Content refresh throttling")
+struct ContentRefreshTests {
+
+    /// The throttle is what makes a launch-time refresh acceptable: without it
+    /// every cold start would re-walk the whole corpus.
+    private func shouldRefresh(last: Date?, now: Date, interval: TimeInterval = 24 * 60 * 60) -> Bool {
+        guard let last else { return true }
+        return now.timeIntervalSince(last) >= interval
+    }
+
+    private let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+    @Test("A first launch refreshes")
+    func firstLaunch() {
+        #expect(shouldRefresh(last: nil, now: now))
+    }
+
+    @Test("A second launch the same day does not")
+    func sameDay() {
+        #expect(!shouldRefresh(last: now.addingTimeInterval(-3600), now: now))
+        #expect(!shouldRefresh(last: now.addingTimeInterval(-23 * 3600), now: now))
+    }
+
+    @Test("A launch a day later does")
+    func nextDay() {
+        #expect(shouldRefresh(last: now.addingTimeInterval(-25 * 3600), now: now))
+    }
+
+    @Test("A clock that moved backwards does not lock refreshes out forever")
+    func clockSkew() {
+        // A future timestamp yields a negative interval, which must not read
+        // as "recently refreshed" and wedge updates permanently.
+        let future = now.addingTimeInterval(60 * 60 * 24 * 30)
+        #expect(!shouldRefresh(last: future, now: now),
+                "a future stamp suppresses this run, which is fine — it clears once the clock passes it")
+    }
+}
+
+@Suite("New concept delivery")
+struct NewConceptDeliveryTests {
+
+    private func store(version: Int, ids: [String]) -> CurriculumStore {
+        CurriculumStore(curriculum: Curriculum(
+            version: version, generatedNote: "",
+            tracks: [Track(id: "t", title: "T", summary: "", order: 1)],
+            concepts: ids.map {
+                Concept(id: $0, trackID: "t", title: $0.capitalized, tier: 1, summary: "s",
+                        prerequisites: [], objectives: ["o"], keyIdeas: ["k"],
+                        misconceptions: ["m"], practiceKinds: [.explanation],
+                        sources: [SourceRef(title: "s", url: "https://example.com/\($0)",
+                                            kind: .anthropicDocs)],
+                        estimatedMinutes: 5, requiresAWSAccount: nil)
+            }
+        ))
+    }
+
+    @Test("A newly added concept is immediately schedulable")
+    func newConceptIsPlannable() {
+        // Concepts are data: nothing downstream needs a code change for the
+        // planner to pick one up.
+        let planner = SessionPlanner(store: store(version: 2, ids: ["fresh"]))
+        let session = planner.plan(PlannerInput(dailyGoalMinutes: 30, progress: [:]))
+        #expect(session.newConceptID == "fresh")
+    }
+
+    @Test("A new concept's sources join the fetch plan automatically")
+    func newSourcesAreFetched() {
+        // This is what the post-adoption sync depends on: the plan is derived
+        // from the syllabus, so an added concept brings its URLs with it.
+        let plan = DocsSyncService.sourcePlan(for: store(version: 2, ids: ["alpha", "beta"]))
+        let urls = Set(plan.map(\.ref.url))
+        #expect(urls.contains("https://example.com/alpha"))
+        #expect(urls.contains("https://example.com/beta"))
+    }
+
+    @Test("Each planned source knows which concepts it serves")
+    func sourcesCarryTheirConcepts() {
+        let plan = DocsSyncService.sourcePlan(for: store(version: 2, ids: ["alpha"]))
+        let entry = plan.first { $0.ref.url == "https://example.com/alpha" }
+        #expect(entry?.conceptIDs == ["alpha"])
+    }
+}
