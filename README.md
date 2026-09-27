@@ -474,15 +474,15 @@ its own rates, and the UI says so.
 
 ## The curriculum
 
-104 concepts across 7 tracks, authored as a prerequisite graph. At one new
-concept a day, roughly five months of material.
+109 concepts across 7 tracks, authored as a prerequisite graph. At one new
+concept a day, roughly five and a half months of material.
 
 | Track | Concepts | Covers |
 |---|---|---|
 | **Prompting & Context Engineering** | 14 | Request anatomy, being explicit, structure and delimiters, examples, output shaping, context budgets, context engineering, prompting long-horizon agents |
 | **The Claude API** | 18 | Messages endpoint, content blocks, stop reasons, streaming, adaptive thinking, effort, prompt caching and its silent invalidators, structured outputs, batches, files, cost |
-| **Tool Use & Agents** | 16 | Tool definitions and schemas, the agentic loop, parallel calls, server-side tools, MCP, the four ways to build an agent, tool surface design, Managed Agents, subagent fan-out |
-| **Agentic Development** | 12 | Claude Code as a harness, memory files, permissions, slash commands, skills, hooks, MCP servers, subagents, the Agent SDK, headless CI |
+| **Tool Use & Agents** | 17 | Tool definitions and schemas, the agentic loop, parallel calls, server-side tools, MCP, the advisor tool, tool surface design, Managed Agents, subagent fan-out |
+| **Agentic Development** | 16 | Claude Code as a harness → memory, hooks, skills, subagents, plugins, the sandbox, worktrees, routines, the Agent SDK |
 | **Evaluation & Reliability** | 9 | Why evals, sourcing cases, choosing graders, LLM judges and their biases, train/test splits, hillclimbing, regression testing, model migration |
 | **AWS & Amazon Bedrock** | 23 | AWS accounts, IAM, credentials, SigV4, the CLI; then Bedrock from what-it-is through InvokeModel, streaming, guardrails, knowledge bases, agents, quotas, observability, VPC isolation, and production architecture |
 | **Production AI Engineering** | 12 | Key management, latency, retries, observability, RAG, multimodal, refusal handling, approval gates, cost control, prompt injection defense, and a capstone |
@@ -633,12 +633,17 @@ Roughly four to five model calls per session:
 | Step | Model | Why |
 |---|---|---|
 | Warm-up | — | No call |
-| Lesson | Opus 5, high effort | Needs the reasoning |
+| Lesson | Opus 5.5, medium effort | Needs the reasoning |
 | Quiz generation | Haiku 4.5 | Mechanical work from an already-written lesson |
 | Short-answer grading | Haiku 4.5 | Only if you wrote free text |
-| Task generation | Opus 5, high effort | Design judgement |
-| Task grading | Opus 5, high effort | Judgement, and it must be accurate |
+| Task generation | Opus 5.5, medium effort | Design judgement |
+| Task grading | Opus 5.5, medium effort | Judgement, and it must be accurate |
 | Reflection | — | No call |
+
+Effort is chosen per model rather than fixed. Level names do not mean the same
+amount of thinking across models — Opus 5.5 defaults to `medium` and matches
+Opus 5 at `high` on this kind of work — so sending one value to every model
+quietly overpays on the newer ones.
 
 The stable part of every system prompt — the tutor instructions, identical on
 every request the app makes — sits behind a one-hour cache breakpoint, with

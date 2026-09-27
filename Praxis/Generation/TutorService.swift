@@ -57,7 +57,7 @@ struct TutorService: Sendable {
             tools: [TutorTools.lesson],
             toolChoice: .auto,
             thinking: .adaptiveVisible,
-            outputConfig: OutputConfig(effort: "high")
+            outputConfig: OutputConfig(effort: ModelCatalog.recommendedEffort(for: modelID))
         )
 
         let (response, latency) = try await streamed(request, onThinking: onThinking)
@@ -155,7 +155,7 @@ struct TutorService: Sendable {
             tools: [TutorTools.task],
             toolChoice: .auto,
             thinking: .adaptiveVisible,
-            outputConfig: OutputConfig(effort: "high")
+            outputConfig: OutputConfig(effort: ModelCatalog.recommendedEffort(for: modelID))
         )
 
         let (response, latency) = try await streamed(request, onThinking: onThinking)
@@ -183,7 +183,7 @@ struct TutorService: Sendable {
             tools: [TutorTools.grade],
             toolChoice: .auto,
             thinking: .adaptiveVisible,
-            outputConfig: OutputConfig(effort: "high")
+            outputConfig: OutputConfig(effort: ModelCatalog.recommendedEffort(for: modelID))
         )
 
         let (response, latency) = try await streamed(request, onThinking: onThinking)

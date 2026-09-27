@@ -227,6 +227,24 @@ warm-up slot.
 - `DocumentStore.directoryOverride` exists only so tests write to a temp
   directory. Never set it in app code.
 
+## Models
+
+`ModelCatalog` is the only place model IDs live. Bedrock ids carry an
+`anthropic.` prefix; first-party ones do not, and a test asserts every Bedrock
+entry has a first-party counterpart.
+
+`ModelCatalog.recommendedEffort(for:)` exists because **effort levels are not
+comparable across models**. Opus 5.5 defaults to `medium` and matches Opus 5 at
+`high`; carrying one value across a model change costs tokens with no error to
+warn you. Never hardcode an effort string at a call site — that is what this
+function replaced.
+
+Claude Opus 5.5 rejects, with a 400: `thinking: {type: "disabled"}`,
+`budget_tokens`, forced `tool_choice` (`any` / `tool`), `temperature` / `top_p`
+/ `top_k`, and assistant prefill. The app is compatible with all of these —
+`tool_choice` is `.auto` plus an instruction, thinking is never disabled, and no
+sampling parameters are sent. Keep it that way.
+
 ## Conventions worth preserving
 
 - **Lessons cite only supplied URLs.** `citedSourceURLs` is validated against the

@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "generatedNote": "Syllabus for AI engineering with Claude and Amazon Bedrock. Concepts are small, prerequisite-linked units; tiers run 1 (foundational) to 5 (expert). Source URLs are fetched by the docs sync service to ground generated lessons in current material.",
+  "version": 2,
+  "generatedNote": "Syllabus for AI engineering with Claude and Amazon Bedrock. Concepts are small, prerequisite-linked units; tiers run 1 (foundational) to 5 (expert). Version 2 adds Claude Opus 5.5 and the Claude Code capabilities published since v1. Source URLs are fetched by the docs sync service to ground generated lessons in current material.",
   "tracks": [
     {
       "id": "prompting",
@@ -1069,13 +1069,13 @@
         "Handle thinking blocks when continuing a conversation"
       ],
       "keyIdeas": [
-        "thinking: {type: 'adaptive'} is the current form. budget_tokens is removed on Opus 5 / Sonnet 5 and returns a 400.",
-        "On Opus 5, thinking is on by default; {type: 'disabled'} is accepted only at effort high or below.",
+        "thinking: {type: 'adaptive'} is the current form. budget_tokens is removed on current models and returns a 400.",
+        "Whether thinking can be switched off is model-specific: Opus 5 accepts {type: 'disabled'} at high effort or below; Opus 5.5 rejects it outright, because thinking is always on.",
         "thinking.display controls visibility only. The default 'omitted' returns empty thinking blocks; 'summarized' returns a readable summary. Thinking is billed either way.",
-        "Echo thinking blocks back unchanged when continuing on the same model."
+        "Read responses by block type rather than position — a response may or may not open with a thinking block."
       ],
       "misconceptions": [
-        "That disabling thinking saves money reliably on Opus 5. Low effort with thinking on is usually cheaper and better.",
+        "That disabling thinking is a portable way to cut cost. It is rejected on newer models; lowering effort is the portable lever.",
         "That an empty thinking block means the model did not think. It means display is set to omitted."
       ],
       "practiceKinds": [
@@ -1109,14 +1109,15 @@
         "Explain why effort beats a model cascade in some cases"
       ],
       "keyIdeas": [
-        "output_config: {effort: 'low'|'medium'|'high'|'xhigh'|'max'}. It nests inside output_config, not top-level. Default is high.",
-        "xhigh suits coding and agentic work; low suits subagents, classification, and high-volume routes.",
-        "Lower effort on a newer model often matches a previous generation at high effort — measure before building a cascade.",
-        "Changing top-level effort mid-conversation invalidates the messages cache."
+        "output_config: {effort: 'low'|'medium'|'high'|'xhigh'|'max'}. It nests inside output_config, not top-level.",
+        "The default is model-dependent: Opus 5 defaults to high, Opus 5.5 to medium. There is no universal default to assume.",
+        "Effort names do not mean the same amount of thinking across models. Opus 5.5 at medium matches or beats Opus 5 at high on coding work, so carrying a value across a model change silently changes what you pay.",
+        "Lowering effort reduces thinking, cost and latency more reliably than instructing the model to think less.",
+        "Changing top-level effort mid-conversation invalidates the prompt cache; a per-message effort change avoids that."
       ],
       "misconceptions": [
         "That max effort is 'the good setting'. It earns its cost only on genuinely hard problems.",
-        "That effort is a top-level parameter. It lives in output_config."
+        "That an effort level transfers across models. It is the single most expensive assumption to carry through a migration."
       ],
       "practiceKinds": [
         "investigation",
@@ -2667,14 +2668,15 @@
         "Identify breaking changes between model generations"
       ],
       "keyIdeas": [
-        "Three workstreams: API surface changes, prompting written for the old model, and re-tuning effort and parameters.",
-        "Known breaking changes across recent generations include removed prefill, removed budget_tokens, removed sampling parameters, and changed thinking defaults.",
-        "Tokenizers change between generations, so re-baseline token counts and cost rather than assuming they carry over.",
-        "Run the eval before and after on the same split. The migration is done when the numbers say so."
+        "Three workstreams: API surface changes, prompting written for the old model, and re-tuning effort.",
+        "Recent generations removed things rather than adding: prefill, budget_tokens, sampling parameters, and on Opus 5.5 both disabled thinking and forced tool_choice, which now return 400.",
+        "Effort is the trap. Levels are not comparable across models, so carrying your old value forward changes cost and latency without any error to warn you.",
+        "Behaviour shifts too. Opus 5.5 ends some turns with a progress update rather than a tool call, so an unattended loop that treats end_turn as completion stops early.",
+        "Run the eval before and after on the same split. The migration is done when the numbers say so, not when the 400s stop."
       ],
       "misconceptions": [
-        "That a newer model is strictly better everywhere, so no validation is needed. Behaviour shifts, and prompts tuned to the old model can score worse.",
-        "That migration is finished when the code stops 400ing. That is where it starts."
+        "That migration is a string change. The prompting and the effort setting are part of it.",
+        "That a newer model is strictly better everywhere, so no validation is needed. Prompts tuned to the old model can score worse."
       ],
       "practiceKinds": [
         "investigation",
@@ -4068,6 +4070,223 @@
         }
       ],
       "estimatedMinutes": 20
+    },
+    {
+      "id": "agent-advisor",
+      "trackID": "tools",
+      "title": "Escalating to a stronger model",
+      "tier": 4,
+      "summary": "The advisor tool lets a running agent consult a stronger model at the moments that matter, instead of you picking one model for the whole task.",
+      "prerequisites": [
+        "server-tools",
+        "agent-vs-workflow"
+      ],
+      "objectives": [
+        "Decide when an agent should escalate rather than continue",
+        "Pair an executor and advisor model correctly"
+      ],
+      "keyIdeas": [
+        "The advisor is a server-side tool: Claude calls it mid-task and applies the guidance before continuing. You choose the advisor model; Claude chooses the moment.",
+        "It receives the full conversation including every tool call and result, so it is answering with the same context the executor has — not a fresh summary.",
+        "The natural moments are before committing to an approach, when stuck on a repeating error, and before declaring a task done.",
+        "The advisor must be at least as capable as the executor. An invalid pairing returns a 400.",
+        "This is the alternative to running the whole task on your most expensive model: pay for strength at the few points where it changes the outcome."
+      ],
+      "misconceptions": [
+        "That you decide when the advisor is consulted. You choose the model and the availability; the executor decides when to ask.",
+        "That escalation is the same as just using the stronger model throughout. The point is spending capability where it changes the decision, not everywhere."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Advisor tool",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Escalate hard decisions with the advisor tool",
+          "url": "https://code.claude.com/docs/en/advisor",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "cc-plugins",
+      "trackID": "claude-code",
+      "title": "Plugins and marketplaces",
+      "tier": 4,
+      "summary": "A plugin bundles skills, agents, hooks and MCP servers into one installable unit, so a working setup can be shared rather than described.",
+      "prerequisites": [
+        "cc-skills",
+        "cc-hooks"
+      ],
+      "objectives": [
+        "Install a plugin and choose the right scope for it",
+        "Decide when your own configuration should become a plugin"
+      ],
+      "keyIdeas": [
+        "Installing a plugin adds its skills, agents, hooks and MCP servers to Claude Code at once — it is a bundle, not a single capability.",
+        "Scope decides who gets it: personal, project, or organization. A project-scoped plugin means a new contributor's Claude Code is configured by cloning the repo.",
+        "Plugins come from marketplaces, which you add by URL. Anthropic publishes some; you can host your own.",
+        "A plugin is executing code with access to your context, and its hooks run on your machine. Installing one is a trust decision, not a preference.",
+        "Plugins have dependencies and versions, so a setup that works can be pinned and reproduced."
+      ],
+      "misconceptions": [
+        "That a plugin is just a bundle of slash commands. It can carry hooks and MCP servers, which run code.",
+        "That installing from a marketplace implies review. Treat a third-party plugin the way you would treat any dependency you are about to execute."
+      ],
+      "practiceKinds": [
+        "code",
+        "explanation"
+      ],
+      "sources": [
+        {
+          "title": "Install and manage plugins",
+          "url": "https://code.claude.com/docs/en/plugins/install",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Create a Claude Code plugin",
+          "url": "https://code.claude.com/docs/en/plugins/create",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Marketplace reference",
+          "url": "https://code.claude.com/docs/en/plugins/marketplace-reference",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "cc-sandbox",
+      "trackID": "claude-code",
+      "title": "The Bash sandbox",
+      "tier": 4,
+      "summary": "Instead of approving every command, you declare which files and domains commands may touch and let the operating system enforce it.",
+      "prerequisites": [
+        "cc-permissions"
+      ],
+      "objectives": [
+        "Configure a sandbox boundary for a real project",
+        "Explain why an OS-enforced boundary beats per-command approval"
+      ],
+      "keyIdeas": [
+        "You define the filesystem paths and network domains commands may reach; the OS enforces that for every Bash command and its child processes.",
+        "The prize is removing approval fatigue. A learner who clicks through fifty prompts an hour is not reviewing anything, so the prompts were buying nothing.",
+        "Enforcement is by the operating system, not by the model's cooperation — the distinction that makes it a boundary rather than an instruction.",
+        "It runs on macOS, Linux and WSL2. Native Windows is not supported; run inside WSL2 there.",
+        "A boundary drawn too wide is theatre. Scope it to the project and the hosts the build genuinely needs."
+      ],
+      "misconceptions": [
+        "That the sandbox makes an agent safe to leave unattended. It bounds the blast radius of shell commands; it does not review what the agent decides to do inside those bounds.",
+        "That fewer prompts means less control. Per-command approval that people reflexively accept is weaker control than a boundary that holds without attention."
+      ],
+      "practiceKinds": [
+        "code",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Configure the sandboxed Bash tool",
+          "url": "https://code.claude.com/docs/en/sandboxing",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Choose a sandbox environment",
+          "url": "https://code.claude.com/docs/en/sandbox-environments",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "cc-worktrees",
+      "trackID": "claude-code",
+      "title": "Parallel sessions with worktrees",
+      "tier": 4,
+      "summary": "A git worktree gives each session its own working directory, so two agents can work on one repository without overwriting each other.",
+      "prerequisites": [
+        "cc-effective-workflow"
+      ],
+      "objectives": [
+        "Run two sessions on one repository without their edits colliding",
+        "Choose between worktrees, subagents and separate sessions"
+      ],
+      "keyIdeas": [
+        "A worktree is a separate working directory with its own branch, sharing the repository history and remote. Edits in one never touch another.",
+        "This is the isolation mechanism for parallel *sessions*. Subagents split work inside one session and share its working directory.",
+        "Pick by what needs isolating: file edits need worktrees, context needs subagents, and neither is a substitute for the other.",
+        "Cross-session messaging lets sessions in different worktrees pass findings to each other.",
+        "Parallelism has a review cost. Three branches produced in an hour still need one human to read three diffs."
+      ],
+      "misconceptions": [
+        "That subagents give you parallel file editing. They share the session's working directory, so concurrent edits collide.",
+        "That more parallel sessions means more throughput. The bottleneck usually moves to review, not generation."
+      ],
+      "practiceKinds": [
+        "code",
+        "investigation"
+      ],
+      "sources": [
+        {
+          "title": "Run parallel sessions with worktrees",
+          "url": "https://code.claude.com/docs/en/worktrees",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Subagents",
+          "url": "https://code.claude.com/docs/en/sub-agents",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 9
+    },
+    {
+      "id": "cc-routines",
+      "trackID": "claude-code",
+      "title": "Routines: agents that run without you",
+      "tier": 5,
+      "summary": "A saved prompt, repository set and connector set, run on a schedule, an HTTP call, or a repository event — on infrastructure that is not your laptop.",
+      "prerequisites": [
+        "cc-headless-ci"
+      ],
+      "objectives": [
+        "Decide whether a task belongs in a routine rather than a session",
+        "Design a routine whose output is reviewable"
+      ],
+      "keyIdeas": [
+        "A routine packages a prompt, repositories and connectors once and runs it automatically on managed cloud infrastructure, so it does not need your machine awake.",
+        "Three triggers: a schedule, an HTTP POST to a per-routine endpoint, or a repository event such as a pull request or release.",
+        "This is unattended execution, so everything from the headless lesson applies: budgets, scoped credentials, and output that lands as a pull request rather than a push.",
+        "Good candidates are recurring and bounded — triage, dependency checks, nightly audits. Open-ended work is a poor fit because nobody is watching it drift.",
+        "A routine that nobody reads is worse than no routine: it spends money and builds false confidence that something is being checked."
+      ],
+      "misconceptions": [
+        "That a routine is a cron job running Claude Code on your laptop. It runs on managed infrastructure with its own configuration and credentials.",
+        "That scheduling something means it is being monitored. Schedule the review of the output too, or you have automated only the easy half."
+      ],
+      "practiceKinds": [
+        "explanation",
+        "code"
+      ],
+      "sources": [
+        {
+          "title": "Automate work with routines",
+          "url": "https://code.claude.com/docs/en/routines",
+          "kind": "anthropicDocs"
+        },
+        {
+          "title": "Claude Code GitHub Actions",
+          "url": "https://code.claude.com/docs/en/github-actions",
+          "kind": "anthropicDocs"
+        }
+      ],
+      "estimatedMinutes": 11
     }
   ]
 }

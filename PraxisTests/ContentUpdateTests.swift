@@ -357,3 +357,97 @@ struct RetrievalPriorityTests {
         #expect(snapshot.isDiscovered == false)
     }
 }
+
+@Suite("Model catalog")
+struct ModelCatalogTests {
+
+    @Test("Opus 5.5 is offered on both providers and is the default")
+    func opus55IsDefault() {
+        #expect(ModelCatalog.defaultAnthropicModel == "claude-opus-5-5")
+        #expect(ModelCatalog.defaultBedrockModel == "anthropic.claude-opus-5-5")
+        #expect(ModelCatalog.anthropic.contains { $0.id == "claude-opus-5-5" })
+        #expect(ModelCatalog.bedrock.contains { $0.id == "anthropic.claude-opus-5-5" })
+    }
+
+    @Test("Bedrock ids carry the anthropic. prefix and first-party ids do not")
+    func idPrefixes() {
+        #expect(ModelCatalog.anthropic.allSatisfy { !$0.id.hasPrefix("anthropic.") })
+        #expect(ModelCatalog.bedrock.allSatisfy { $0.id.hasPrefix("anthropic.") })
+    }
+
+    @Test("Every Bedrock entry has a first-party counterpart")
+    func providersStayInStep() {
+        let firstParty = Set(ModelCatalog.anthropic.map(\.id))
+        for entry in ModelCatalog.bedrock {
+            let stripped = entry.id.replacingOccurrences(of: "anthropic.", with: "")
+            #expect(firstParty.contains(stripped), "\(entry.id) has no first-party equivalent")
+        }
+    }
+
+    @Test("Effort is model-specific, not one value carried across models")
+    func effortIsPerModel() {
+        // The expensive migration mistake: Opus 5.5 defaults to medium and
+        // matches Opus 5 at high, so sending high to 5.5 buys longer turns for
+        // nothing. Opus 5 genuinely wants high.
+        #expect(ModelCatalog.recommendedEffort(for: "claude-opus-5-5") == "medium")
+        #expect(ModelCatalog.recommendedEffort(for: "claude-opus-5") == "high")
+        #expect(ModelCatalog.recommendedEffort(for: "claude-haiku-4-5") == "medium")
+    }
+
+    @Test("The Bedrock prefix does not change the recommended effort")
+    func effortIgnoresPrefix() {
+        #expect(ModelCatalog.recommendedEffort(for: "anthropic.claude-opus-5-5")
+                == ModelCatalog.recommendedEffort(for: "claude-opus-5-5"))
+    }
+
+    @Test("An unknown model falls back to high rather than crashing")
+    func unknownModelFallsBack() {
+        #expect(ModelCatalog.recommendedEffort(for: "claude-something-new") == "high")
+    }
+
+    @Test("Every catalog entry has a usable effort level")
+    func allEntriesResolve() {
+        let valid: Set<String> = ["low", "medium", "high", "xhigh", "max"]
+        for entry in ModelCatalog.anthropic + ModelCatalog.bedrock {
+            #expect(valid.contains(ModelCatalog.recommendedEffort(for: entry.id)))
+        }
+    }
+}
+
+@Suite("Curriculum version 2")
+struct CurriculumVersionTests {
+
+    private func loadStore() throws -> CurriculumStore {
+        let bundle = Bundle(for: VersionBundleToken.self)
+        let url = try #require(
+            bundle.url(forResource: "curriculum", withExtension: "json")
+                ?? Bundle.main.url(forResource: "curriculum", withExtension: "json")
+        )
+        return try CurriculumStore(data: Data(contentsOf: url))
+    }
+
+    @Test("The bundled syllabus is at least version 2")
+    func versionBumped() throws {
+        // The update mechanism only adopts a *newer* syllabus, so shipping new
+        // concepts without bumping this delivers them to nobody.
+        #expect(try loadStore().curriculum.version >= 2)
+    }
+
+    @Test("The concepts added for Opus 5.5 and current Claude Code are present")
+    func newConceptsPresent() throws {
+        let store = try loadStore()
+        for id in ["agent-advisor", "cc-plugins", "cc-sandbox", "cc-worktrees", "cc-routines"] {
+            #expect(store.concept(id) != nil, "missing concept \(id)")
+        }
+    }
+
+    @Test("Corrected concepts no longer state a single universal effort default")
+    func effortConceptIsModelAware() throws {
+        let concept = try #require(try loadStore().concept("api-effort"))
+        let text = concept.keyIdeas.joined(separator: " ").lowercased()
+        #expect(text.contains("model-dependent") || text.contains("opus 5.5"),
+                "api-effort should no longer imply one default across models")
+    }
+}
+
+private final class VersionBundleToken {}
